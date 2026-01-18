@@ -1,0 +1,16 @@
+[workspace]
+authors = ["DvdBr3o <dvdbr3o@qq.com>"]
+channels = ["conda-forge"]
+name = "mediapipe"
+platforms = ["win-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = ">=3.13.11,<3.14"
+opencv = ">=4.12.0,<5"
+
+[pypi-dependencies]
+mediapipe = ">=0.10.31, <0.11"
+oscpy = ">=0.6.0, <0.7"

@@ -1,0 +1,17 @@
+target("emdawn")
+    set_languages("cxx20")
+    add_files("webgpu/src/**.cpp")
+    add_headerfiles("webgpu/include/**.h")
+    add_headerfiles("webgpu_cpp/include/**.h")
+    add_includedirs("webgpu/include")
+    add_includedirs("webgpu_cpp/include")
+
+    add_ldflags("--closure=1")
+    -- add_ldflags("--js-library webgpu/src/library_webgpu.js")
+    -- add_ldflags("--js-library webgpu/src/library_webgpu_enum_tables.js")
+    -- add_ldflags("--js-library webgpu/src/library_webgpu_generated_sig_info.js")
+    -- add_ldflags("--js-library webgpu/src/library_webgpu_generated_sig_info.js")
+    -- add_ldflags("--js-library webgpu/src/library_webgpu_generated_struct_info.js")
+    -- add_ldflags("--js-library webgpu/src/webgpu-externs.js")
+    add_ldflags("--use-port=emdawnwebgpu")
+    
