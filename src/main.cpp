@@ -160,6 +160,8 @@
 #include "dvdbchar/Render.hpp"
 #include "exec/async_scope.hpp"
 #include "exec/task.hpp"
+#include "simdjson.h"
+#include "slang.h"
 #include "stdexec/__detail/__domain.hpp"
 #include "webgpu/webgpu_cpp.h"
 
@@ -222,47 +224,36 @@ using namespace dvdbchar;
 // 	// });
 // }
 
+#include "dvdbchar/ComptimeJson.hpp"
+
 #include <exec/static_thread_pool.hpp>
 
 using namespace stdexec;
 using namespace dvdbchar::Render;
 
-int main() {
-	try {
-		WgpuContext ctx = WgpuContext::create();
-		Render::Buffer<int, wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc> buffer = {
-			ctx.device,
-			1
-		};
-		exec::static_thread_pool pool { 8 };
+inline static constexpr char json[] = {
+#include "Pipeline.refl.json.h"
+};
 
-		auto					 sched = ctx.get_scheduler_from(pool.get_scheduler());
-		// auto sched = ctx.get_scheduler();
+int main() {}
 
-		auto data = std::vector<int> { 1 };
-		// auto			  work	= starts_on(sched, buffer.write_buffer(data));
-		auto			  work2 = starts_on(sched, buffer.async_write(data));
+//
+// int main() {
+// 	try {
+// 		exec::static_thread_pool pool;
+// 		Render::Pipeline		 pipeline {};
 
-		exec::async_scope as;
-		std::stop_source  ss;
+// 		auto					 sched = pipeline.get_scheduler_from(pool.get_scheduler());
 
-		as.spawn(work2 | then([](auto&&) { spdlog::info("after work2!"); }));
+// 		sync_wait(starts_on(sched, pipeline.launch()));
 
-		as.spawn(when_all(
-			starts_on(sched, just() | then([&]() {
-								 spdlog::info("into sleep");
-								 std::this_thread::sleep_for(std::chrono::seconds(3));
-								 spdlog::info("after sleep");
-								 ss.request_stop();
-							 })),
-			starts_on(sched, ctx.launch(ss.get_token()) | then([]() {
-								 spdlog::info("after launch!");
-							 }))
-		));
+// 		spdlog::info("yep");
 
-		spdlog::info("after spawn");
+// 	} catch (const std::exception& e) { spdlog::error("Uncaught error: {}", e.what()); }
+// }
 
-		sync_wait(as.on_empty());
-		spdlog::info("yep");
-	} catch (const std::exception& e) { spdlog::error("Uncaught error: {}", e.what()); }
-}
+// int main() {
+// 	try {
+// 		auto refl = Shader::JsonReflection { "./shaders/Pipeline.refl.json" };
+// 	} catch (const std::exception& e) { spdlog::error("Uncaught error: {}", e.what()); }
+// }

@@ -1,10 +1,6 @@
 #pragma once
 
 #include "dvdbchar/Glfw.hpp"
-#include "stdexec/__detail/__completion_signatures.hpp"
-#include "stdexec/__detail/__execution_fwd.hpp"
-#include "stdexec/__detail/__senders_core.hpp"
-#include "stdexec/__detail/__then.hpp"
 
 #include <spdlog/spdlog.h>
 #include <webgpu/webgpu_cpp.h>

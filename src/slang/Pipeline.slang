@@ -1,5 +1,8 @@
 module Pipeline;
 
+import Utils;
+import Uniform;
+
 static float2 positions[3] = float2[](
     float2(0.0, -0.5),
     float2(0.5, 0.5),
@@ -26,8 +29,10 @@ struct VertexOutput {
 
 [shader("vertex")]
 VertexOutput vertMain(uint vid : SV_VertexID , VertexInput input) {
+	// VertexOutput vertMain(uint vid : SV_VertexID) {
     VertexOutput output;
     output.sv_position = float4(input.pos, 1.);
+    // output.sv_position = float4(positions[vid], 1.);
     output.color = colors[vid];
     return output;
 }

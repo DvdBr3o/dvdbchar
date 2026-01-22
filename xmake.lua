@@ -18,19 +18,21 @@ add_requires("asio")
 add_requires("oscpack")
 add_requires("fastgltf")
 add_requires("glm")
+add_requires("simdjson")
 
 add_requires("stdexec")
 
 target("dvdbchar.slang")
     set_kind("static")
     add_packages("slang")
-    add_rules("slang")
-    add_files("src/**.slang")
+    add_rules("slang", {target_kind = "wgsl"})
+    -- add_rules("slang", {target_kind = "spirv"})
+    add_files("src/slang/Pipeline.slang")
     
 target("dvdbchar")
     set_kind("binary")
     set_languages("cxx20")
-    add_rules("utils.bin2c", {extensions = ".wgsl"})
+    add_rules("utils.bin2c", {extensions = {".wgsl", ".json"}})
 
     add_deps("dvdbchar.slang")
     add_packages("dawn")
@@ -44,10 +46,12 @@ target("dvdbchar")
     add_packages("fastgltf")
     add_packages("glm")
     add_packages("stdexec")
+    add_packages("simdjson")
 
     add_headerfiles("src/**.hpp")
     add_files("src/**.cpp")
-    add_files("src/slang/*.wgsl")
+    add_files("src/slang/**.wgsl")
+    add_files("src/slang/**.refl.json")
     add_includedirs("src")
 
     if is_plat("windows") then
@@ -55,5 +59,8 @@ target("dvdbchar")
     end
     
     after_build(function(target)
-        os.cp("public/**", target:targetdir())
+        os.rm(path.join(target:targetdir(), "public"))
+        os.rm(path.join(target:targetdir(), "shaders"))
+        os.cp("public", path.join(target:targetdir(), "public"))
+        os.cp("src/slang", path.join(target:targetdir(), "shaders"))
     end)
