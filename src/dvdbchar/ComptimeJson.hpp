@@ -72,6 +72,16 @@ namespace dvdbchar {
 					return false;
 			return true;
 		}
+
+		template<size_t N>
+		constexpr auto operator==(const char (&another)[N]) const {
+			if (size != N)
+				return false;
+			for (int i = 0; i < size; ++i)
+				if (data[i] != another[i])
+					return false;
+			return true;
+		}
 	};
 
 	template<typename... Ts>
@@ -238,10 +248,11 @@ namespace dvdbchar {
 		constexpr auto match(std::string_view sv) -> std::string_view {
 			if (sv[0] != '[')
 				throw "expected array!"_ce;
+			sv.remove_prefix(1);
 
 			std::vector<char> bs = { '[' };
-			size_t			  i	 = 1;
-			while (!sv.empty() && !bs.empty()) {
+			size_t			  i	 = 0;
+			while (i < sv.size() && !bs.empty()) {
 				switch (sv[i]) {
 					case '[': bs.emplace_back('['); break;
 					case ']': bs.pop_back(); break;
@@ -253,9 +264,11 @@ namespace dvdbchar {
 			if (sv.empty() && !bs.empty())
 				throw "brackets mismatched!"_ce;
 
-			value = LazyArray { StringView { sv.substr(1, i - 2) } };
+			value = LazyArray { StringView { sv.substr(0, i - 1) } };
 
 			sv.remove_prefix(i);
+
+			sv = strip_space(sv);
 
 			return sv;
 		}
@@ -321,15 +334,49 @@ namespace dvdbchar {
 
 			key = String { sv }.value;
 
+			sv	= strip_space(sv);
+
 			expect(':');
 
-			sv		 = strip_space(sv);
+			sv = strip_space(sv);
 
-			size_t i = 0;
-			while (i < sv.size() && sv[i] != ',') ++i;
-			value = StringView { sv.substr(0, i) };
+			if (sv[0] == '[') {
+				std::vector<char> bs = { '[' };
+				size_t			  i	 = 1;
+				while (i < sv.size() && !bs.empty()) {
+					switch (sv[i]) {
+						case '[': bs.emplace_back('['); break;
+						case ']': bs.pop_back(); break;
+						default: break;
+					}
+					++i;
+				}
+				if (i == sv.size() && !bs.empty())
+					throw "brackets mismatched!"_ce;
+				value = StringView { sv.substr(0, i + 1) };
+				sv.remove_prefix(i);
+			} else if (sv[0] == '{') {
+				std::vector<char> bs = { '{' };
+				size_t			  i	 = 1;
+				while (i < sv.size() && !bs.empty()) {
+					switch (sv[i]) {
+						case '{': bs.emplace_back('{'); break;
+						case '}': bs.pop_back(); break;
+						default: break;
+					}
+					++i;
+				}
+				if (i == sv.size() && !bs.empty())
+					throw "braces mismatched!"_ce;
+				value = StringView { sv.substr(0, i + 1) };
+				sv.remove_prefix(i + 1);
+			} else {
+				size_t i = 0;
+				while (i < sv.size() && sv[i] != ',') ++i;
+				value = StringView { sv.substr(0, i) };
 
-			sv.remove_prefix(i);
+				sv.remove_prefix(i);
+			}
 
 			if (!sv.empty() && sv[0] == ',')
 				sv.remove_prefix(1);
@@ -385,14 +432,20 @@ namespace dvdbchar {
 			constexpr auto operator[](Key<fs>) const
 				-> find_key<fs, std::tuple<ps...>>::value_type {
 				// using V = find_key<fs, std::tuple<ps...>>::pair_type;
-				using V = find_key<fs, std::tuple<ps...>>::value_matcher;
-				auto sv = std::string_view { raw };
+				using V			  = find_key<fs, std::tuple<ps...>>::value_matcher;
+				auto	   sv	  = std::string_view { raw };
+				const auto expect = [&sv](char c) {
+					if (!sv.empty() && sv[0] != c)
+						throw;
+					else
+						sv.remove_prefix(1);
+				};
 
 				while (!sv.empty()) {
 					sv				  = strip_space(sv);
 					const auto [k, v] = LazyPair { sv };
 					if (k == (std::string_view)fs) {
-						auto vv = (std::string_view)v;
+						auto vv = std::string_view { v };
 						return V { vv }.value;
 					}
 				}
@@ -453,11 +506,18 @@ namespace dvdbchar {
 	template<typename T>
 	inline static constexpr auto try_parse(std::string_view sv) {
 		T t { sv };
-		// return sv;
 		return t;
 	}
 
-	static_assert((std::string_view)parse<String>("\"hello\"").value == "hello");
+	template<typename T>
+	inline static constexpr auto dump_parse(std::string_view sv) {
+		T t { sv };
+		return sv;
+	}
+
+	using std::operator""sv;
+
+	static_assert(parse<String>("\"hello\"").value == "hello"sv);
 	static_assert(parse<Number>("12.3").value == 12.3);
 	static_assert(parse<Number>(".3").value - .3 < .000001);
 	static_assert(parse<Number>("13.").value == 13.);
@@ -468,35 +528,82 @@ namespace dvdbchar {
 	static_assert(parse<Nullable<Number>>("12").value == 12);
 	static_assert(parse<Array<Number>>("[12, 24]")[0].value == 12);
 	static_assert(parse<Array<Number>>("[12, 24]")[1].value == 24);
-	static_assert(
-		(std::string_view)parse<Array<String>>(R"(["hello", "world"])")[0].value == "hello"
-	);
-	static_assert(
-		(std::string_view)parse<Array<String>>(R"(["hello", "world"])")[1].value == "world"
-	);
+	static_assert(parse<Array<String>>(R"(["hello", "world"])")[0].value == "hello"sv);
+	static_assert(parse<Array<String>>(R"(["hello", "world"])")[1].value == "world"sv);
 	static_assert(parse<Pair<"hello"_key, Number>>(R"("hello": 1)").value == 1);
-	static_assert(
-		(std::string_view)parse<Pair<"gender"_key, String>>(R"("gender": "male")").value == "male"
-	);
-	static_assert((std::string_view)parse<String>(R"(   "age" )").value == "age");
+	static_assert(parse<Pair<"gender"_key, String>>(R"("gender": "male")").value == "male"sv);
+	static_assert(parse<String>(R"(   "age" )").value == "age"sv);
 	static_assert(parse<Dict<Pair<"age"_key, Number>>>(R"({ "age": 19 })")["age"_key] == 19);
 	static_assert(
-		(std::string_view)parse<Dict<Pair<"age"_key, Number>, Pair<"name"_key, String>>>(
-			R"({ "age": 19, "name": "dvdbr3o" })"
+		parse<Dict<Pair<"age"_key, Number>, Pair<"name"_key, String>>>(
+			R"({ "age": 1, "name": "dvdbr3o" })"
 		)["name"_key]
-		== "dvdbr3o"
+		== "dvdbr3o"sv
 	);
 	static_assert(
-		(std::string_view)parse<Dict<Pair<"name"_key, String>>>(
+		parse<Dict<Pair<"age"_key, Number>, Pair<"name"_key, String>>>(
+			R"({ "age": 19, "name": "dvdbr3o" })"
+		)
+			.value.raw
+		== R"( "age": 19, "name": "dvdbr3o" )"sv
+	);
+	static_assert(
+		parse<Dict<Pair<"name"_key, String>>>(
 			R"({ "name": "dvdbr3o", "age": [12, 13] })"
 		)["name"_key]
-		== "dvdbr3o"
+		== "dvdbr3o"sv
 	);
 	static_assert(
 		std::same_as<
 			find_key<"name"_fs, std::tuple<Pair<"age"_key, Number>, Pair<"name"_key, String>>>::
 				value_matcher,
 			String>
+	);
+	static_assert(
+		parse<Array<Dict<Pair<"name"_key, String>>>>(R"([{"name":   "dvdbr3o"},])")[0]["name"_key]
+		== "dvdbr3o"sv
+	);
+	// static_assert(
+	// 	(std::string_view)
+	// 		parse<Dict<Pair<"parameters"_key, Array<Dict<Pair<"name"_key, String>>>>>>(
+	// 			R"({
+	//                 "parameters": [
+	//                     {
+	//                         "name": "dvdbr3o",
+	//                         "fuck": 2
+	//                     }
+	//                 ]
+	//                 })"
+	// 		)["parameters"_key][0]["name"_key]
+	// 	== "dvdbr3o"
+	// );
+	static_assert(
+		parse<Array<Dict<Pair<"name"_key, String>>>>(R"([{ "name": "dvdbr3o" , "fuck": 2 }])")
+			.value.raw
+		== R"({ "name": "dvdbr3o" , "fuck": 2 })"sv
+	);
+	static_assert(
+		parse<Dict<Pair<"parameters"_key, Array<Dict<Pair<"name"_key, String>>>>>>(
+			R"({ "parameters": [{ "name": "dvdbr3o" , "fuck": 2 }] })"
+		)
+			.value.raw
+		// ["parameters"_key]	.raw
+		// 		.raw.size
+
+		// == R"({ "name": "dvdbr3o", "fuck": 2 })"
+		== R"( "parameters": [{ "name": "dvdbr3o" , "fuck": 2 }] )"sv
+		// == 19
+	);
+	static_assert(
+		parse<Dict<
+			Pair<"parameters"_key, Array<Dict<Pair<"name"_key, String>>>>,
+			Pair<"entrypoints"_key, Array<Number>>>>(
+			R"({  "entrypoints": [1, 2, 3], "parameters": [{ "fuc": {}, "name": "dvdbr3o" , "fuck": 2 }] })"
+		)["parameters"_key][0]["name"_key]
+		== "dvdbr3o"sv
+		// 	["entrypoints"_key][0]
+		// 		.value
+		// == 1
 	);
 
 }  // namespace dvdbchar
