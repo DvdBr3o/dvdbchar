@@ -106,7 +106,8 @@ namespace dvdbchar {
 	};
 
 	inline static constexpr auto strip_space(std::string_view sv) -> std::string_view {
-		while (!sv.empty() && (sv[0] == ' ' || sv[0] == '\t' || sv[0] == '\n')) sv.remove_prefix(1);
+		while (!sv.empty() && (sv[0] == ' ' || sv[0] == '\t' || sv[0] == '\n' || sv[0] == '\r'))
+			sv.remove_prefix(1);
 		return sv;
 	}
 
@@ -120,6 +121,8 @@ namespace dvdbchar {
 		constexpr String(std::string_view& sv) { sv = match(strip_space(sv)); }
 
 		constexpr auto match(std::string_view sv) -> std::string_view {
+			if (sv.empty())
+				throw "early eof"_ce;
 			if (!sv.empty() && sv[0] != '\"')
 				throw "expect string quote"_ce;
 			sv.remove_prefix(1);
@@ -378,6 +381,8 @@ namespace dvdbchar {
 				sv.remove_prefix(i);
 			}
 
+			sv = strip_space(sv);
+
 			if (!sv.empty() && sv[0] == ',')
 				sv.remove_prefix(1);
 
@@ -563,20 +568,6 @@ namespace dvdbchar {
 		parse<Array<Dict<Pair<"name"_key, String>>>>(R"([{"name":   "dvdbr3o"},])")[0]["name"_key]
 		== "dvdbr3o"sv
 	);
-	// static_assert(
-	// 	(std::string_view)
-	// 		parse<Dict<Pair<"parameters"_key, Array<Dict<Pair<"name"_key, String>>>>>>(
-	// 			R"({
-	//                 "parameters": [
-	//                     {
-	//                         "name": "dvdbr3o",
-	//                         "fuck": 2
-	//                     }
-	//                 ]
-	//                 })"
-	// 		)["parameters"_key][0]["name"_key]
-	// 	== "dvdbr3o"
-	// );
 	static_assert(
 		parse<Array<Dict<Pair<"name"_key, String>>>>(R"([{ "name": "dvdbr3o" , "fuck": 2 }])")
 			.value.raw
