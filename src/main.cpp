@@ -1,168 +1,17 @@
-// #include <iostream>
-
-// #include <GLFW/glfw3.h>
-// #include <dawn/webgpu_cpp_print.h>
-// #include <webgpu/webgpu_cpp.h>
-// #include <webgpu/webgpu_glfw.h>
-// #include <slang.h>
-
-// struct Context {
-// 	wgpu::Instance		 instance;
-// 	wgpu::Adapter		 adapter;
-// 	wgpu::Device		 device;
-// 	wgpu::RenderPipeline pipeline;
-
-// 	wgpu::Surface		 surface;
-// 	wgpu::TextureFormat	 format;
-// 	const uint32_t		 kWidth	 = 1080;
-// 	const uint32_t		 kHeight = 720;
-
-// 	void				 ConfigureSurface() {
-// 		wgpu::SurfaceCapabilities capabilities;
-// 		surface.GetCapabilities(adapter, &capabilities);
-// 		format = capabilities.formats[0];
-
-// 		//
-// 		const wgpu::SurfaceConfiguration config = {
-// 							.device		 = device,
-// 							.format		 = format,
-// 							.width		 = kWidth,
-// 							.height		 = kHeight,
-// 							.presentMode = wgpu::PresentMode::Mailbox,
-// 		};
-// 		surface.Configure(&config);
-// 	}
-
-// 	void Init() {
-// 		// static const auto		 kTimedWaitAny = {};
-// 		wgpu::InstanceDescriptor instanceDesc {
-// 			.capabilities = {
-// 				.timedWaitAnyEnable = true,
-// 			},
-// 		};
-// 		instance		= wgpu::CreateInstance(&instanceDesc);
-
-// 		wgpu::Future f1 = instance.RequestAdapter(
-// 			nullptr,
-// 			wgpu::CallbackMode::WaitAnyOnly,
-// 			[&](wgpu::RequestAdapterStatus status, wgpu::Adapter a, wgpu::StringView message) {
-// 				if (status != wgpu::RequestAdapterStatus::Success) {
-// 					std::cout << "RequestAdapter: " << message << "\n";
-// 					exit(0);
-// 				}
-// 				adapter = std::move(a);
-// 			}
-// 		);
-// 		instance.WaitAny(f1, UINT64_MAX);
-
-// 		wgpu::DeviceDescriptor desc {};
-// 		desc.SetUncapturedErrorCallback(
-// 			[](const wgpu::Device&, wgpu::ErrorType errorType, wgpu::StringView message) {
-// 				std::cout << "Error: " << errorType << " - message: " << message << "\n";
-// 			}
-// 		);
-
-// 		wgpu::Future f2 = adapter.RequestDevice(
-// 			&desc,
-// 			wgpu::CallbackMode::WaitAnyOnly,
-// 			[&](wgpu::RequestDeviceStatus status, wgpu::Device d, wgpu::StringView message) {
-// 				if (status != wgpu::RequestDeviceStatus::Success) {
-// 					std::cout << "RequestDevice: " << message << "\n";
-// 					exit(0);
-// 				}
-// 				device = std::move(d);
-// 			}
-// 		);
-// 		instance.WaitAny(f2, UINT64_MAX);
-// 	}
-
-// 	static constexpr char shaderCode[] = {
-// #include "Pipeline.wgsl.h"
-// 	};
-
-// 	//
-// 	void CreateRenderPipeline() {
-// 		wgpu::ShaderSourceWGSL		 wgsl { { .code = shaderCode } };
-
-// 		wgpu::ShaderModuleDescriptor shaderModuleDescriptor { .nextInChain = &wgsl };
-// 		wgpu::ShaderModule	   shaderModule = device.CreateShaderModule(&shaderModuleDescriptor);
-
-// 		wgpu::ColorTargetState colorTargetState { .format = format };
-
-// 		wgpu::FragmentState	   fragmentState { .module		= shaderModule,
-// 											   .targetCount = 1,
-// 											   .targets		= &colorTargetState };
-
-// 		wgpu::RenderPipelineDescriptor descriptor { .vertex	  = { .module = shaderModule },
-// 													.fragment = &fragmentState };
-// 		pipeline = device.CreateRenderPipeline(&descriptor);
-// 	}
-
-// 	void Render() {
-// 		wgpu::SurfaceTexture surfaceTexture;
-// 		surface.GetCurrentTexture(&surfaceTexture);
-
-// 		wgpu::RenderPassColorAttachment attachment { .view	  = surfaceTexture.texture.CreateView(),
-// 													 .loadOp  = wgpu::LoadOp::Clear,
-// 													 .storeOp = wgpu::StoreOp::Store };
-
-// 		wgpu::RenderPassDescriptor		renderpass { .colorAttachmentCount = 1,
-// 													 .colorAttachments	   = &attachment };
-
-// 		wgpu::CommandEncoder			encoder = device.CreateCommandEncoder();
-// 		wgpu::RenderPassEncoder			pass	= encoder.BeginRenderPass(&renderpass);
-// 		pass.SetPipeline(pipeline);
-// 		pass.Draw(3);
-// 		pass.End();
-// 		wgpu::CommandBuffer commands = encoder.Finish();
-// 		device.GetQueue().Submit(1, &commands);
-// 	}
-
-// 	void InitGraphics() {
-// 		ConfigureSurface();
-// 		CreateRenderPipeline();
-// 	}
-
-// 	void Start() {
-// 		if (!glfwInit())
-// 			return;
-
-// 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-// 		GLFWwindow* window = glfwCreateWindow(kWidth, kHeight, "WebGPU window", nullptr, nullptr);
-// 		surface			   = wgpu::glfw::CreateSurfaceForWindow(instance, window);
-// 		// surface = wgpu::Surface { glfwCreateWindowWGPUSurface(instance.Get(), window) };
-
-// 		InitGraphics();
-
-// #if defined(__EMSCRIPTEN__)
-// 		emscripten_set_main_loop(Render, 0, false);
-// #else
-// 		while (!glfwWindowShouldClose(window)) {
-// 			glfwPollEvents();
-// 			Render();
-// 			surface.Present();
-// 			instance.ProcessEvents();
-// 		}
-// #endif
-// 	}
-// };
-
-// int main() {
-// 	Context ctx;
-// 	ctx.Init();
-// 	ctx.Start();
-// }
-
+#include "GLFW/glfw3.h"
 #include "dvdbchar/OscServer.hpp"
 // #include "dvdbchar/Forwarding.hpp"
 #include "dvdbchar/Pipeline.hpp"
 #include "dvdbchar/Model.hpp"
 #include "dvdbchar/Render.hpp"
+#include "dvdbchar/Render/Bindgroup.hpp"
+#include "dvdbchar/Render/Buffer.hpp"
+#include "dvdbchar/Render/Context.hpp"
 #include "exec/async_scope.hpp"
+#include "exec/static_thread_pool.hpp"
 #include "exec/task.hpp"
 #include "simdjson.h"
 #include "slang.h"
-#include "stdexec/__detail/__domain.hpp"
 #include "webgpu/webgpu_cpp.h"
 
 #include <asio.hpp>
@@ -224,36 +73,129 @@ using namespace dvdbchar;
 // 	// });
 // }
 
-#include "dvdbchar/ComptimeJson.hpp"
-
-#include <exec/static_thread_pool.hpp>
-
 using namespace stdexec;
 using namespace dvdbchar::Render;
 
-inline static constexpr char json[] = {
-#include "Pipeline.refl.json.h"
+#include "dvdbchar/Render/Window.hpp"
+#include "dvdbchar/Render/Pipeline.hpp"
+
+inline static constexpr char shader[] = {
+#include "Pipeline.wgsl.h"
 };
 
-int main() {}
+int main() {
+	try {
+		auto context = WgpuContext::global();
+		auto pool	 = exec::static_thread_pool {};
+		auto sched	 = context.get_scheduler_from(pool.get_scheduler());
+		auto window	 = Window {
+			 {
+				 .width	 = 1920,
+				 .height = 1080,
+				 .title	 = "dvdbchar",
+			  }
+		};
 
-//
-// int main() {
-// 	try {
-// 		exec::static_thread_pool pool;
-// 		Render::Pipeline		 pipeline {};
+		// const auto refl = get_mapping<Uniform>("shaders/Uniform.refl.json");
+		//
+		const auto vb = StaticVertexBuffer<Vertice> {
+			// clang-format off
+				to_span(
+					std::array {
+						Vertice { .pos = { .0, .5, 0. } },
+						Vertice { .pos = { .5, -.5, .0 } },
+						Vertice { .pos = { -.5, -.5, .0 } },
+					}
+				),
+			// clang-format on
+		};
+		const auto camera  = get_mapping<CameraRefl>("camera", "shaders/Uniform.refl.json");
 
-// 		auto					 sched = pipeline.get_scheduler_from(pool.get_scheduler());
+		const auto layouts = std::array {
+			layout<GlobalRefl>("global", "shaders/Uniform.refl.json"),
+			layout<CameraRefl>("camera", "shaders/Uniform.refl.json"),
+			// layout<PbrRefl>("pbr", "shaders/Uniform.refl.json"),
+			// layout<ModelDataRefl>("model_data", "shaders/Uniform.refl.json"),
+		};
 
-// 		sync_wait(starts_on(sched, pipeline.launch()));
+		// clang-format off
+		auto pipeline = Pipeline {
+			context,
+			Pipeline::Spec {
+				.shader			   = *read_text_from("shaders/Pipeline.wgsl"),
+				.format			   = window.format(),
+				.bindgroup_layouts = to_span(layouts), 
+			}
+		};
+		// clang-format on
 
-// 		spdlog::info("yep");
+		const auto global	 = get_mapping<GlobalRefl>("global", "shaders/Uniform.refl.json");
+		auto	   global_ub = ReflectedUniformBuffer<GlobalRefl> { global };
+		auto	   global_bg = Bindgroup {
+				  {
+					  .layout = layout<GlobalRefl>("global", "shaders/Uniform.refl.json"),
+					  .entries =
+					  std::array {
+						  wgpu::BindGroupEntry {
+								  .binding = 0,
+								  .buffer  = global_ub,
+								  .offset  = global.offset,
+								  .size	   = global.size,
+						  },
+					  }, }
+		};
 
-// 	} catch (const std::exception& e) { spdlog::error("Uncaught error: {}", e.what()); }
-// }
+		auto camera_ub = ReflectedUniformBuffer<CameraRefl> { camera };
+		camera_ub.write(camera.position, glm::vec3 { 0.6, 0.8, 0.9 });
+		auto camera_bg = Bindgroup {
+			{
+				.layout = layout<CameraRefl>("camera", "shaders/Uniform.refl.json"),
+				.entries =
+					std::array {
+						wgpu::BindGroupEntry {
+							.binding = 0,
+							.buffer	 = camera_ub,
+							.offset	 = camera.offset,
+							.size	 = camera.size,
+						},
+					}, }
+		};
 
-// int main() {
-// 	try {
-// 		auto refl = Shader::JsonReflection { "./shaders/Pipeline.refl.json" };
-// 	} catch (const std::exception& e) { spdlog::error("Uncaught error: {}", e.what()); }
-// }
+		spdlog::info("after bg");
+
+		while (!glfwWindowShouldClose(window.window())) {
+			glfwPollEvents();
+
+			wgpu::SurfaceTexture tex;
+			window.surface().GetCurrentTexture(&tex);
+
+			global_ub.write(global.time, (float)glfwGetTime());
+
+			const wgpu::RenderPassColorAttachment attachment {
+				.view	 = tex.texture.CreateView(),
+				.loadOp	 = wgpu::LoadOp::Clear,
+				.storeOp = wgpu::StoreOp::Store,
+			};
+
+			const wgpu::RenderPassDescriptor renderpass {
+				.colorAttachmentCount = 1,
+				.colorAttachments	  = &attachment,
+			};
+
+			wgpu::CommandEncoder	encoder = context.device.CreateCommandEncoder();
+			wgpu::RenderPassEncoder pass	= encoder.BeginRenderPass(&renderpass);
+			pass.SetPipeline(pipeline.get());
+			pass.SetVertexBuffer(0, vb.get());
+			pass.SetBindGroup(0, global_bg);
+			pass.SetBindGroup(1, camera_bg);
+			pass.Draw(3);
+			pass.End();
+			wgpu::CommandBuffer commands = encoder.Finish();
+			context.device.GetQueue().Submit(1, &commands);
+
+			window.surface().Present();
+			context.instance.ProcessEvents();
+		}
+
+	} catch (const std::exception& e) { spdlog::error("Uncaught error: {}", e.what()); }
+}

@@ -1,3 +1,24 @@
+struct Camera_std140_0
+{
+    @align(16) position_0 : vec3<f32>,
+    @align(16) direction_0 : vec3<f32>,
+};
+
+@binding(0) @group(1) var<uniform> camera_0 : Camera_std140_0;
+struct Viewport_std140_0
+{
+    @align(16) width_0 : i32,
+    @align(4) height_0 : i32,
+};
+
+struct Global_std140_0
+{
+    @align(16) time_0 : f32,
+    @align(4) frame_0 : f32,
+    @align(16) viewport_0 : Viewport_std140_0,
+};
+
+@binding(0) @group(0) var<uniform> global_0 : Global_std140_0;
 fn _S1( _S2 : ptr<function, array<vec3<f32>, i32(3)>>)
 {
     const _S3 : vec3<f32> = vec3<f32>(0.0f, 1.0f, 0.0f);
@@ -52,7 +73,7 @@ fn fragMain( _S7 : pixelInput_0, @builtin(position) sv_position_1 : vec4<f32>) -
     var _S8 : array<vec3<f32>, i32(3)>;
     _S1(&(_S8));
     colors_0 = _S8;
-    var _S9 : pixelOutput_0 = pixelOutput_0( vec4<f32>(_S7.color_1, 1.0f) );
+    var _S9 : pixelOutput_0 = pixelOutput_0( vec4<f32>(camera_0.position_0 * vec3<f32>((0.5f * sin(global_0.time_0) + 0.5f)), 1.0f) );
     return _S9;
 }
 

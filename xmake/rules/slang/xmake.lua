@@ -14,13 +14,27 @@ rule("slang")
         local slangc_bindir = path.join(target:pkg("slang"):installdir(), "bin")
     
         local slangc = assert(find_program("slangc", {paths = slangc_bindir, check = "-v"}), "slangc not found!")
-        os.vrunv(slangc, {
-            sourcefile,
-            "-target", target_kind,
-            "-o", targetfile,
-            "-reflection-json", reflfile,
-            "-I", ".",
-        })
+        if target_kind ~= "none" then 
+            os.vrunv(slangc, {
+                sourcefile,
+                "-target", target_kind,
+                "-o", targetfile,
+                "-reflection-json", reflfile,
+                "-I", ".",
+            })
+        else
+            try { function()
+               os.vrunv(slangc, {
+                    sourcefile,
+                    "-target", "spirv",
+                    -- "-o", targetfile,
+                    "-reflection-json", reflfile,
+                    "-I", ".",
+                })
+            end,
+            catch { function(err) end }
+            }
+        end 
         
-        progress.show(opt.progress, "${color.build.target}generating.$(mode) %s", path.filename(targetfile))
+        progress.show(opt.progress, "generating.slang %s", path.filename(targetfile))
     end)

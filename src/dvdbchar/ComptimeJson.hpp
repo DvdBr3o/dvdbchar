@@ -227,21 +227,87 @@ namespace dvdbchar {
 
 	template<typename T>
 	struct Array {
+		struct Iterator;
+
 		using value_type = struct LazyArray {
 			StringView raw;
 
 			//
 			constexpr auto operator[](size_t i) const -> T {
-				auto sv = std::string_view { raw };
-				while (!sv.empty() && i)
-					if (const auto comma = sv.find(','); comma != std::string_view::npos) {
-						sv.remove_prefix(comma + 1);
-						--i;
-					} else
-						throw "out of index!"_ce;
+				auto	   sv	  = std::string_view { raw };
+				const auto expect = [&sv](char c) {
+					if (!sv.empty() && sv[0] != c)
+						throw;
+					else
+						sv.remove_prefix(1);
+				};
+				T t = { sv };
+				while (!sv.empty() && i) {
+					sv = strip_space(sv);
+					expect(',');
+					sv = strip_space(sv);
+					t  = T { sv };
+					--i;
+				}
 
-				return T { sv };
+				return t;
 			}
+
+			[[nodiscard]] constexpr auto size() const -> size_t {
+				size_t	   sz	  = 0;
+				auto	   sv	  = std::string_view { raw };
+				const auto expect = [&sv](char c) {
+					if (!sv.empty() && sv[0] != c)
+						throw;
+					else
+						sv.remove_prefix(1);
+				};
+				std::optional<T> t;
+				while (!sv.empty()) {
+					sv = strip_space(sv);
+					try {
+						t = T { sv };
+						++sz;
+					} catch (...) {}
+					sv = strip_space(sv);
+					if (sv.empty() || sv[0] != ',')
+						break;
+				}
+
+				return sz;
+			}
+
+			[[nodiscard]] auto begin() const -> Iterator { return { *this, 0 }; }
+
+			[[nodiscard]] auto end() const -> Iterator { return { *this, size() }; }
+		};
+
+		using iterator_type = struct Iterator {
+		public:
+			constexpr Iterator(const value_type& raw, size_t i) : _arr(raw), _i(i) {}
+
+			constexpr auto operator++() -> Iterator& {
+				++_i;
+				return *this;
+			}
+
+			constexpr auto operator++(int) -> Iterator {
+				auto it = *this;
+				++*this;
+				return it;
+			}
+
+			constexpr auto				 operator*() { return _arr[_i]; }
+
+			constexpr auto				 operator*() const { return _arr[_i]; }
+
+			inline friend constexpr auto operator==(const Iterator& l, const Iterator& r) -> bool {
+				return &l._arr == &r._arr && l._i == r._i;
+			}
+
+		private:
+			const value_type& _arr;
+			size_t			  _i;
 		};
 
 		value_type value;
@@ -276,7 +342,13 @@ namespace dvdbchar {
 			return sv;
 		}
 
-		constexpr auto operator[](size_t i) const -> T { return value[i]; }
+		constexpr auto				 operator[](size_t i) const -> T { return value[i]; }
+
+		[[nodiscard]] constexpr auto size() const -> size_t { return value.size(); }
+
+		[[nodiscard]] auto			 begin() const -> Iterator { return { value, 0 }; }
+
+		[[nodiscard]] auto			 end() const -> Iterator { return { value, size() }; }
 	};
 
 	template<FixedString fs>
@@ -437,14 +509,8 @@ namespace dvdbchar {
 			constexpr auto operator[](Key<fs>) const
 				-> find_key<fs, std::tuple<ps...>>::value_type {
 				// using V = find_key<fs, std::tuple<ps...>>::pair_type;
-				using V			  = find_key<fs, std::tuple<ps...>>::value_matcher;
-				auto	   sv	  = std::string_view { raw };
-				const auto expect = [&sv](char c) {
-					if (!sv.empty() && sv[0] != c)
-						throw;
-					else
-						sv.remove_prefix(1);
-				};
+				using V = find_key<fs, std::tuple<ps...>>::value_matcher;
+				auto sv = std::string_view { raw };
 
 				while (!sv.empty()) {
 					sv				  = strip_space(sv);
@@ -457,6 +523,47 @@ namespace dvdbchar {
 
 				throw "key not found"_ce;
 			}
+
+			[[nodiscard]] constexpr auto size() const -> size_t {
+				size_t sz = 0;
+				auto   sv = std::string_view { raw };
+
+				while (!sv.empty()) {
+					sv = strip_space(sv);
+					LazyPair { sv };
+					++sz;
+				}
+
+				return sz;
+			}
+		};
+
+		using iterator_type = struct Iterator {
+		public:
+			Iterator(value_type raw, size_t i) : _arr(raw), _i(i) {}
+
+			auto operator++() -> Iterator& {
+				++_i;
+				return *this;
+			}
+
+			auto operator++(int) -> Iterator {
+				auto it = *this;
+				++*this;
+				return it;
+			}
+
+			auto&		operator*() { return _arr; }
+
+			const auto& operator*() const { return _arr; }
+
+			auto*		operator->() { return &_arr; }
+
+			const auto* operator->() const { return &_arr; }
+
+		private:
+			value_type _arr;
+			size_t	   _i;
 		};
 
 		template<FixedString fs>
@@ -498,6 +605,8 @@ namespace dvdbchar {
 		constexpr auto operator[](Key<fs> key) const {
 			return value[key];
 		}
+
+		[[nodiscard]] constexpr auto size() const -> size_t { return value.size(); }
 	};
 
 	template<typename T>

@@ -2,6 +2,7 @@ module Pipeline;
 
 import Utils;
 import Uniform;
+import Vertex;
 
 static float2 positions[3] = float2[](
     float2(0.0, -0.5),
@@ -15,18 +16,6 @@ static float3 colors[3] = float3[](
     float3(0.0, 0.0, 1.0)
 );
 
-struct VertexInput {
-	float3 pos;
-	float3 normal;
-	float2 uv;
-	uint   tex_id;
-};
-
-struct VertexOutput {
-    float4 sv_position : SV_Position;
-    float3 color;
-};
-
 [shader("vertex")]
 VertexOutput vertMain(uint vid : SV_VertexID , VertexInput input) {
 	// VertexOutput vertMain(uint vid : SV_VertexID) {
@@ -38,7 +27,8 @@ VertexOutput vertMain(uint vid : SV_VertexID , VertexInput input) {
 }
 
 [shader("fragment")]
-float4 fragMain(VertexOutput inVert) : SV_Target {
-    float3 color = inVert.color;
+float4 fragMain(VertexOutput in_vert) : SV_Target {
+    // float3 color = in_vert.color;
+    float3 color = camera.position.mul(.5 * sin(global.time) + .5);
     return float4(color, 1.0);
 }

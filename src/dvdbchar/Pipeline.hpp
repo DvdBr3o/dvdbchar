@@ -505,7 +505,7 @@ namespace dvdbchar {
 	using StagedVertexBuffer =
 		StagedBuffer<T, wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst>;
 
-	class Pipeline {
+	class LegacyPipeline {
 	public:
 		struct Vertice {
 			glm::vec3					 pos;
@@ -545,9 +545,9 @@ namespace dvdbchar {
 			std::string title;
 		};
 
-		Pipeline() : Pipeline(Spec {}) {}
+		LegacyPipeline() : LegacyPipeline(Spec {}) {}
 
-		Pipeline(const Spec& spec);
+		LegacyPipeline(const Spec& spec);
 
 	public:
 		inline static constexpr char shader[] = {
@@ -579,11 +579,11 @@ namespace dvdbchar {
 }  // namespace dvdbchar
 
 namespace dvdbchar {
-	inline Pipeline::Pipeline(const Spec& spec) : _spec(spec) {
+	inline LegacyPipeline::LegacyPipeline(const Spec& spec) : _spec(spec) {
 		_init_context();
 	}
 
-	inline void Pipeline::_init_context() {
+	inline void LegacyPipeline::_init_context() {
 		const wgpu::InstanceDescriptor instance_desc = {
             .capabilities = {
                 .timedWaitAnyEnable = true,
@@ -662,7 +662,7 @@ namespace dvdbchar {
 		);
 	}
 
-	inline void Pipeline::_init_window(const Spec& spec) {
+	inline void LegacyPipeline::_init_window(const Spec& spec) {
 		GlfwManager::init();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		_window = glfwCreateWindow(spec.width, spec.height, spec.title.data(), nullptr, nullptr);
@@ -701,7 +701,7 @@ namespace dvdbchar {
 		// glfwSetWindowUserPointer(_window, this);
 	}
 
-	inline void Pipeline::_init_pipeline() {
+	inline void LegacyPipeline::_init_pipeline() {
 		const wgpu::ShaderSourceWGSL	   wgsl { { .code = shader } };
 
 		const wgpu::ShaderModuleDescriptor shader_module_desc = { .nextInChain = &wgsl };
@@ -735,7 +735,7 @@ namespace dvdbchar {
 		_pipeline = _device.CreateRenderPipeline(&pipeline_desc);
 	}
 
-	inline void Pipeline::launch() {
+	inline void LegacyPipeline::launch() {
 		_init_window(_spec);
 		_init_pipeline();
 
@@ -747,7 +747,7 @@ namespace dvdbchar {
 		}
 	}
 
-	inline void Pipeline::render() {
+	inline void LegacyPipeline::render() {
 		wgpu::SurfaceTexture tex;
 		_surface.GetCurrentTexture(&tex);
 
