@@ -65,7 +65,7 @@ namespace dvdbchar::Render {
 		Pipeline(
 			const WgpuContext& ctx,
 			// clang-format off
-			const Spec&		   spec = {
+			const Spec& spec = {
                 .vertex = {
                     .stride	   = sizeof(Vertice),
 				    .attributes = to_span(Vertice::vertex_attrib()),
@@ -109,7 +109,6 @@ namespace dvdbchar::Render {
 				},
 				.fragment = &fragment_state,
 			};
-			spdlog::info("pre create");
 			static_cast<wgpu::RenderPipeline&>(*this) =
 				ctx.device.CreateRenderPipeline(&pipeline_desc);
 		}

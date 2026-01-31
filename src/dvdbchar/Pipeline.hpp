@@ -24,7 +24,7 @@
 namespace dvdbchar {
 	using exec::task;
 
-	struct Camera {
+	struct LegacyCamera {
 		glm::vec3 pos;
 		glm::vec3 dir;
 	};

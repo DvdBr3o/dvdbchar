@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Render/Context.hpp"
 #include "dvdbchar/Render/Context.hpp"
 #include "dvdbchar/Utils.hpp"
 
@@ -58,7 +57,7 @@ namespace dvdbchar::Render {
 	};
 
 	template<typename T>
-	concept FieldLike = Like<T, Field>::value;
+	concept FieldLike = Like<T, Field>;
 
 	template<ReflMapped T>
 	struct ReflectedParameter : public T {
@@ -212,7 +211,7 @@ namespace dvdbchar::Render {
 		return get_mapping<T>(*json);
 	}
 
-	inline static constexpr auto layout_entry(
+	inline static auto layout_entry(
 		uint32_t index, simdjson::ondemand::value&& binding,
 		wgpu::ShaderStage visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment
 	) -> wgpu::BindGroupLayoutEntry {
@@ -253,8 +252,6 @@ namespace dvdbchar::Render {
 			entries.emplace_back(layout_entry(0, std::move(*binding)));
 		} else [[unlikely]]
 			panic(std::format("layout failed to parse!"));
-		spdlog::info("layout size = {}", entries.size());
-		for (const auto& entry : entries) spdlog::info("{}", (int)entry.binding);
 		const wgpu::BindGroupLayoutDescriptor desc = {
 			.entryCount = entries.size(),
 			.entries	= entries.data(),

@@ -1,121 +1,107 @@
 #include "GLFW/glfw3.h"
-#include "dvdbchar/OscServer.hpp"
-// #include "dvdbchar/Forwarding.hpp"
-#include "dvdbchar/Pipeline.hpp"
-#include "dvdbchar/Model.hpp"
 #include "dvdbchar/Render.hpp"
-#include "dvdbchar/Render/Bindgroup.hpp"
-#include "dvdbchar/Render/Buffer.hpp"
+#include "dvdbchar/Render/Camera.hpp"
 #include "dvdbchar/Render/Context.hpp"
-#include "exec/async_scope.hpp"
-#include "exec/static_thread_pool.hpp"
-#include "exec/task.hpp"
-#include "simdjson.h"
-#include "slang.h"
-#include "webgpu/webgpu_cpp.h"
-
-#include <asio.hpp>
-#include <exception>
-#include <fastgltf/core.hpp>
-
-#include <thread>
-
-using namespace dvdbchar;
-
-// int main() {
-// 	// GlfwManager::init();
-// 	auto pipeline = Pipeline(
-// 		{
-// 			.width	= 1080,
-// 			.height = 720,
-// 			.title	= "dvdbchar",
-// 		}
-// 	);
-// 	auto osc = OscService(
-// 		{
-// 			.port = 15784,
-// 			.handler =
-// 				[](const osc::ReceivedPacket& packet) {
-// 					if (packet.IsBundle()) {
-// 						const auto bundle = osc::ReceivedBundle(packet);
-// 						//
-// 					} else {  // packet.IsMessage()
-// 						const auto message = osc::ReceivedMessage(packet);
-// 						//
-// 					}
-// 				},
-// 		}
-// 	);
-// 	std::jthread osc_thread([&]() { osc.serve(); });
-// 	std::jthread render_thread([&]() {
-// 		pipeline.launch();
-// 		osc.stop();
-// 	});
-
-// 	// std::jthread load_model([&]() {
-// 	// 	//
-// 	// 	try {
-// 	// 		auto model = Model("./mrweird.vrm");
-// 	// 		model.introduce_self();
-// 	// 	} catch (const std::exception& e) { spdlog::error(e.what()); }
-// 	// 	spdlog::info("model loaded!");
-// 	// });
-
-// 	// std::jthread spout_forward([&]() {
-// 	// 	try {
-// 	// 		SpoutForwarder forwarder;
-// 	// 		// forwarder.send({});
-// 	// 	} catch (const std::exception& e) { spdlog::error(e.what()); }
-// 	// });
-// 	// std::jthread face_tracker([&]() {
-// 	// 	system("cd trackers/mediapipe");
-// 	// 	system("pixi run python tracker.py");
-// 	// });
-// }
-
-using namespace stdexec;
-using namespace dvdbchar::Render;
-
+#include "dvdbchar/Render/Primitives.hpp"
 #include "dvdbchar/Render/Window.hpp"
-#include "dvdbchar/Render/Pipeline.hpp"
+#include "dvdbchar/Utils.hpp"
+
+#include <exec/static_thread_pool.hpp>
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
 
 inline static constexpr char shader[] = {
 #include "Pipeline.wgsl.h"
 };
+
+using namespace dvdbchar::Render;
+using namespace dvdbchar;
 
 int main() {
 	try {
 		auto context = WgpuContext::global();
 		auto pool	 = exec::static_thread_pool {};
 		auto sched	 = context.get_scheduler_from(pool.get_scheduler());
-		auto window	 = Window {
-			 {
-				 .width	 = 1920,
-				 .height = 1080,
-				 .title	 = "dvdbchar",
-			  }
+
+		auto cam	 = Camera {
+				.position  = { 0., 0.,  1. },
+				.direction = { 0., 0., -2. },
 		};
 
-		// const auto refl = get_mapping<Uniform>("shaders/Uniform.refl.json");
-		//
-		const auto vb = StaticVertexBuffer<Vertice> {
-			// clang-format off
-				to_span(
-					std::array {
-						Vertice { .pos = { .0, .5, 0. } },
+		const auto global	 = get_mapping<GlobalRefl>("global", "shaders/Uniform.refl.json");
+		auto	   global_ub = ReflectedUniformBuffer<GlobalRefl> { global };
+
+		// clang-format off
+		auto	   global_bg = Bindgroup {{
+			.layout = layout<GlobalRefl>("global", "shaders/Uniform.refl.json"),
+			.entries = std::array { wgpu::BindGroupEntry {
+				.binding = 0,
+				.buffer  = global_ub,
+				.offset  = global.offset,
+				.size	   = global.size,
+			}}, 
+		}};
+		// clang-format on
+
+		const auto camera	 = get_mapping<CameraRefl>("camera", "shaders/Uniform.refl.json");
+		auto	   camera_ub = ReflectedUniformBuffer<CameraRefl> { camera };
+		camera_ub.write(camera.view_matrix, cam.view_matrix());
+		camera_ub.write(camera.projection_matrix, cam.projection_matrix());
+		auto camera_bg = Bindgroup {
+			{
+				.layout	 = layout<CameraRefl>("camera", "shaders/Uniform.refl.json"),
+				.entries = std::array { wgpu::BindGroupEntry {
+					.binding = 0,
+					.buffer	 = camera_ub,
+					.offset	 = camera.offset,
+					.size	 = camera.size,
+				} },
+			 }
+		};
+
+		auto window = Window {
+			{
+				.width	= 1920,
+				.height = 1080,
+				.title	= "dvdbchar",
+			 }
+		};
+		cam.aspect = window.aspect();
+
+		struct EscExiter {
+			const Window& window;
+
+			//
+			auto operator()(Window::on_key_t, const KeySignal& key) const {
+				if (key.key == GLFW_KEY_ESCAPE && key.action == GLFW_RELEASE)
+					glfwSetWindowShouldClose(window.window(), GLFW_TRUE);
+			}
+		};
+
+		auto _ = window.bind(
+			Window::on_key(	 //
+				FpsCameraController { cam },
+				EscExiter { window }
+			),
+			Window::on_window_resize(  //
+				CameraAspectAdaptor { cam }
+			),
+			Window::on_mouse_moved(	 //
+				FpsCameraController { cam }
+			)
+		);
+
+		auto vb = ArrayVertexBuffer<Vertice> {
+			std::array {
+						Vertice { .pos = { .5, .5, 0. } },
 						Vertice { .pos = { .5, -.5, .0 } },
 						Vertice { .pos = { -.5, -.5, .0 } },
-					}
-				),
-			// clang-format on
+						Vertice { .pos = { -.5, .5, .0 } },
+						}
 		};
-		const auto camera  = get_mapping<CameraRefl>("camera", "shaders/Uniform.refl.json");
-
-		const auto layouts = std::array {
-			layout<GlobalRefl>("global", "shaders/Uniform.refl.json"),
-			layout<CameraRefl>("camera", "shaders/Uniform.refl.json"),
-			// layout<PbrRefl>("pbr", "shaders/Uniform.refl.json"),
-			// layout<ModelDataRefl>("model_data", "shaders/Uniform.refl.json"),
+		auto ib = ArrayIndexBuffer {
+			std::array { 0u, 1u, 2u, 0u, 2u, 3u }
 		};
 
 		// clang-format off
@@ -124,44 +110,15 @@ int main() {
 			Pipeline::Spec {
 				.shader			   = *read_text_from("shaders/Pipeline.wgsl"),
 				.format			   = window.format(),
-				.bindgroup_layouts = to_span(layouts), 
+				.bindgroup_layouts = std::array {
+					layout<GlobalRefl>("global", "shaders/Uniform.refl.json"),
+					layout<CameraRefl>("camera", "shaders/Uniform.refl.json"),
+					// layout<PbrRefl>("pbr", "shaders/Uniform.refl.json"),
+					// layout<ModelDataRefl>("model_data", "shaders/Uniform.refl.json"),
+				}, 
 			}
 		};
 		// clang-format on
-
-		const auto global	 = get_mapping<GlobalRefl>("global", "shaders/Uniform.refl.json");
-		auto	   global_ub = ReflectedUniformBuffer<GlobalRefl> { global };
-		auto	   global_bg = Bindgroup {
-				  {
-					  .layout = layout<GlobalRefl>("global", "shaders/Uniform.refl.json"),
-					  .entries =
-					  std::array {
-						  wgpu::BindGroupEntry {
-								  .binding = 0,
-								  .buffer  = global_ub,
-								  .offset  = global.offset,
-								  .size	   = global.size,
-						  },
-					  }, }
-		};
-
-		auto camera_ub = ReflectedUniformBuffer<CameraRefl> { camera };
-		camera_ub.write(camera.position, glm::vec3 { 0.6, 0.8, 0.9 });
-		auto camera_bg = Bindgroup {
-			{
-				.layout = layout<CameraRefl>("camera", "shaders/Uniform.refl.json"),
-				.entries =
-					std::array {
-						wgpu::BindGroupEntry {
-							.binding = 0,
-							.buffer	 = camera_ub,
-							.offset	 = camera.offset,
-							.size	 = camera.size,
-						},
-					}, }
-		};
-
-		spdlog::info("after bg");
 
 		while (!glfwWindowShouldClose(window.window())) {
 			glfwPollEvents();
@@ -184,14 +141,19 @@ int main() {
 
 			wgpu::CommandEncoder	encoder = context.device.CreateCommandEncoder();
 			wgpu::RenderPassEncoder pass	= encoder.BeginRenderPass(&renderpass);
-			pass.SetPipeline(pipeline.get());
-			pass.SetVertexBuffer(0, vb.get());
+			pass.SetPipeline(pipeline);
+			pass.SetVertexBuffer(0, vb);
+			pass.SetIndexBuffer(ib, wgpu::IndexFormat::Uint32);
 			pass.SetBindGroup(0, global_bg);
 			pass.SetBindGroup(1, camera_bg);
-			pass.Draw(3);
+			// pass.Draw(3);
+			pass.DrawIndexed(6);
 			pass.End();
 			wgpu::CommandBuffer commands = encoder.Finish();
 			context.device.GetQueue().Submit(1, &commands);
+
+			camera_ub.write(camera.view_matrix, cam.view_matrix());
+			camera_ub.write(camera.projection_matrix, cam.projection_matrix());
 
 			window.surface().Present();
 			context.instance.ProcessEvents();

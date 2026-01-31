@@ -122,28 +122,30 @@
                     "name": "Camera",
                     "fields": [
                         {
-                            "name": "position",
+                            "name": "view_matrix",
                             "type": {
-                                "kind": "vector",
-                                "elementCount": 3,
+                                "kind": "matrix",
+                                "rowCount": 4,
+                                "columnCount": 4,
                                 "elementType": {
                                     "kind": "scalar",
                                     "scalarType": "float32"
                                 }
                             },
-                            "binding": {"kind": "uniform", "offset": 0, "size": 12}
+                            "binding": {"kind": "uniform", "offset": 0, "size": 64}
                         },
                         {
-                            "name": "direction",
+                            "name": "projection_matrix",
                             "type": {
-                                "kind": "vector",
-                                "elementCount": 3,
+                                "kind": "matrix",
+                                "rowCount": 4,
+                                "columnCount": 4,
                                 "elementType": {
                                     "kind": "scalar",
                                     "scalarType": "float32"
                                 }
                             },
-                            "binding": {"kind": "uniform", "offset": 16, "size": 12}
+                            "binding": {"kind": "uniform", "offset": 64, "size": 64}
                         }
                     ]
                 },
@@ -159,32 +161,34 @@
                         "name": "Camera",
                         "fields": [
                             {
-                                "name": "position",
+                                "name": "view_matrix",
                                 "type": {
-                                    "kind": "vector",
-                                    "elementCount": 3,
+                                    "kind": "matrix",
+                                    "rowCount": 4,
+                                    "columnCount": 4,
                                     "elementType": {
                                         "kind": "scalar",
                                         "scalarType": "float32"
                                     }
                                 },
-                                "binding": {"kind": "uniform", "offset": 0, "size": 12}
+                                "binding": {"kind": "uniform", "offset": 0, "size": 64}
                             },
                             {
-                                "name": "direction",
+                                "name": "projection_matrix",
                                 "type": {
-                                    "kind": "vector",
-                                    "elementCount": 3,
+                                    "kind": "matrix",
+                                    "rowCount": 4,
+                                    "columnCount": 4,
                                     "elementType": {
                                         "kind": "scalar",
                                         "scalarType": "float32"
                                     }
                                 },
-                                "binding": {"kind": "uniform", "offset": 16, "size": 12}
+                                "binding": {"kind": "uniform", "offset": 64, "size": 64}
                             }
                         ]
                     },
-                    "binding": {"kind": "uniform", "offset": 0, "size": 32}
+                    "binding": {"kind": "uniform", "offset": 0, "size": 128}
                 }
             }
         }

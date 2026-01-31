@@ -1,6 +1,5 @@
 #pragma once
 
-#include "dvdbchar/Render/Context.hpp"
 #include "dvdbchar/Utils.hpp"
 
 #include <dawn/webgpu_cpp.h>

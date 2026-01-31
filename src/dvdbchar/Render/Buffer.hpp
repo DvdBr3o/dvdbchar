@@ -2,7 +2,7 @@
 
 #include "Context.hpp"
 #include "dvdbchar/Render/Context.hpp"
-#include "dvdbchar/ShaderReflection.hpp"
+#include "dvdbchar/Render/ShaderReflection.hpp"
 
 #include <webgpu/webgpu_cpp.h>
 
@@ -10,11 +10,11 @@
 
 namespace dvdbchar::Render {
 	template<wgpu::BufferUsage usage = wgpu::BufferUsage::None>
-	class DynBuffer : public wgpu::Buffer {
+	class Buffer : public wgpu::Buffer {
 	public:
-		DynBuffer(const WgpuContext& ctx) : _ctx(&ctx) {}
+		Buffer(const WgpuContext& ctx) : _ctx(&ctx) {}
 
-		DynBuffer(const WgpuContext& ctx, size_t size) : _ctx(&ctx) {
+		Buffer(const WgpuContext& ctx, size_t size) : _ctx(&ctx) {
 			const wgpu::BufferDescriptor buffer_desc = {
 				.usage			  = usage,
 				.size			  = size,
@@ -25,7 +25,7 @@ namespace dvdbchar::Render {
 
 		template<typename T>
 			requires std::is_trivially_copyable_v<T>
-		DynBuffer(const WgpuContext& ctx, T&& data) : _ctx(&ctx) {
+		Buffer(const WgpuContext& ctx, T&& data) : _ctx(&ctx) {
 			constexpr wgpu::BufferDescriptor buffer_desc = {
 				.usage			  = usage,
 				.size			  = sizeof(T),
@@ -39,30 +39,30 @@ namespace dvdbchar::Render {
 		}
 
 	public:
-		inline static auto create(const WgpuContext& ctx) -> DynBuffer { return { ctx }; }
+		inline static auto create(const WgpuContext& ctx) -> Buffer { return { ctx }; }
 
 		template<typename T>
 			requires std::is_trivially_copyable_v<T>
-		inline static auto create(const WgpuContext& ctx, T&& data) -> DynBuffer {
+		inline static auto create(const WgpuContext& ctx, T&& data) -> Buffer {
 			return { ctx, std::forward<T>(data) };
 		}
 
-		inline static auto create() -> DynBuffer {
+		inline static auto create() -> Buffer {
 			using namespace stdexec;
 			return						   //
 				read_env(get_scheduler) |  //
-				then([](auto&& sched) -> DynBuffer {
+				then([](auto&& sched) -> Buffer {
 					return { std::forward<decltype(sched)>(sched) };
 				});
 		}
 
 		template<typename T>
 			requires std::is_trivially_copyable_v<T>
-		inline static auto create(T&& data) -> DynBuffer {
+		inline static auto create(T&& data) -> Buffer {
 			using namespace stdexec;
 			return						   //
 				read_env(get_scheduler) |  //
-				then([data = std::forward<T>(data)](auto&& sched) -> DynBuffer {
+				then([data = std::forward<T>(data)](auto&& sched) -> Buffer {
 					return { std::forward<decltype(sched)>(sched), std::forward<T>(data) };
 				});
 		}
@@ -97,15 +97,15 @@ namespace dvdbchar::Render {
 	};
 
 	template<typename T, wgpu::BufferUsage usage = wgpu::BufferUsage::None>
-	class Buffer : public wgpu::Buffer {
+	class LegacyBuffer : public wgpu::Buffer {
 	public:
-		Buffer(wgpu::Device device, const wgpu::BufferDescriptor& desc) :
+		LegacyBuffer(wgpu::Device device, const wgpu::BufferDescriptor& desc) :
 			_device(std::move(device)) {
 			static_cast<wgpu::Buffer&>(*this) = _device.CreateBuffer(&desc);
 		}
 
-		Buffer(const wgpu::Device& device, size_t size) :
-			Buffer {
+		LegacyBuffer(const wgpu::Device& device, size_t size) :
+			LegacyBuffer {
 				device,
 				wgpu::BufferDescriptor {
 										.usage			  = usage,
@@ -116,19 +116,19 @@ namespace dvdbchar::Render {
 
 	private:
 		struct [[nodiscard]] WriteBufferSender {
-			Buffer&			   buffer;
+			LegacyBuffer&	   buffer;
 			std::span<const T> data;
 
 			using sender_concept		= stdexec::sender_t;
 			using completion_signatures = stdexec::completion_signatures<
-				stdexec::set_value_t(const Buffer&),	  //
-				stdexec::set_error_t(std::exception_ptr)  //
+				stdexec::set_value_t(const LegacyBuffer&),	//
+				stdexec::set_error_t(std::exception_ptr)	//
 				>;
 
 			template<stdexec::receiver R>
 			struct Opstate {
 				R				   r;
-				Buffer&			   buffer;
+				LegacyBuffer&	   buffer;
 				std::span<const T> data;
 
 				//
@@ -157,20 +157,20 @@ namespace dvdbchar::Render {
 		};
 
 		struct [[nodiscard]] AsyncWriteSender {
-			const Buffer&	   buffer;
-			std::span<const T> data;
+			const LegacyBuffer& buffer;
+			std::span<const T>	data;
 
 			using sender_concept		= stdexec::sender_t;
 			using completion_signatures = stdexec::completion_signatures<
-				stdexec::set_value_t(const Buffer&),	  //
-				stdexec::set_error_t(std::exception_ptr)  //
+				stdexec::set_value_t(const LegacyBuffer&),	//
+				stdexec::set_error_t(std::exception_ptr)	//
 				>;
 
 			template<stdexec::receiver R>
 			struct Opstate {
-				R				   r;
-				const Buffer&	   buffer;
-				std::span<const T> data;
+				R					r;
+				const LegacyBuffer& buffer;
+				std::span<const T>	data;
 
 				//
 				auto start() noexcept {
@@ -224,7 +224,7 @@ namespace dvdbchar::Render {
 
 		template<typename DstT, wgpu::BufferUsage dst_usage>
 		auto copy_to(
-			const Buffer<DstT, dst_usage>& dst, size_t src_offset = 0, size_t dst_offset = 0,
+			const LegacyBuffer<DstT, dst_usage>& dst, size_t src_offset = 0, size_t dst_offset = 0,
 			size_t size = 1
 		) {
 			using namespace stdexec;
@@ -245,7 +245,60 @@ namespace dvdbchar::Render {
 	};
 
 	template<typename T>
-	using VertexBuffer = Buffer<T, wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst>;
+	using LegacyVertexBuffer =
+		LegacyBuffer<T, wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst>;
+
+	template<typename T, wgpu::BufferUsage usage>
+	class ArrayBuffer : public wgpu::Buffer {
+	public:
+		ArrayBuffer(const WgpuContext& ctx, std::span<const T> data) {
+			const wgpu::BufferDescriptor buffer_desc = {
+				.usage			  = usage,
+				.size			  = data.size() * sizeof(T),
+				.mappedAtCreation = false,
+			};
+			static_cast<wgpu::Buffer&>(*this) = ctx.device.CreateBuffer(&buffer_desc);
+
+			ctx.queue.WriteBuffer(*this, 0, data.data(), data.size() * sizeof(T));
+		}
+
+		ArrayBuffer(const WgpuContext& ctx, size_t size) {
+			const wgpu::BufferDescriptor buffer_desc = {
+				.usage			  = usage,
+				.size			  = size,
+				.mappedAtCreation = false,
+			};
+			static_cast<wgpu::Buffer&>(*this) = ctx.device.CreateBuffer(&buffer_desc);
+		}
+
+		ArrayBuffer(std::span<const T> data) : ArrayBuffer(WgpuContext::global(), data) {}
+
+		ArrayBuffer(size_t size) : ArrayBuffer(WgpuContext::global(), size) {}
+
+	public:
+		auto write(const WgpuContext& ctx, size_t offset, std::span<const T> data) {
+			if (this->GetSize() < data.size() * sizeof(T))
+				*this = ArrayBuffer { ctx, data.size() * sizeof(T) };
+			ctx.queue.WriteBuffer(*this, offset, data.data(), data.size() * sizeof(T));
+		}
+
+		auto write(const WgpuContext& ctx, std::span<const T> data) { return write(ctx, 0, data); }
+
+		auto write(size_t offset, std::span<const T> data) {
+			WgpuContext::global()
+				.queue.WriteBuffer(*this, offset, data.data(), data.size() * sizeof(T));
+		}
+
+		auto write(std::span<const T> data) {
+			WgpuContext::global().queue.WriteBuffer(*this, 0, data.data(), data.size() * sizeof(T));
+		}
+	};
+
+	template<typename T, wgpu::BufferUsage usage = wgpu::BufferUsage::None>
+	using ArrayVertexBuffer =
+		ArrayBuffer<T, wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | usage>;
+	using ArrayIndexBuffer =
+		ArrayBuffer<uint32_t, wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst>;
 
 	template<typename T>
 	class StaticVertexBuffer : public wgpu::Buffer {
@@ -331,18 +384,38 @@ namespace dvdbchar::Render {
 		}
 	};
 
-	template<ParamMapped T>
-	class ReflectedUniformBuffer<T> : public wgpu::Buffer {
-	public:
-		ReflectedUniformBuffer(const WgpuContext& ctx, const T& refl) {
-			const wgpu::BufferDescriptor buffer_desc = {
-				.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
-				// .size			  = refl.,
-				.mappedAtCreation = false,
-			};
-			get() = ctx.device.CreateBuffer(&buffer_desc);
-		}
+	// template<ParamMapped T>
+	// class ReflectedUniformBuffer<T> : public wgpu::Buffer {
+	// public:
+	// 	ReflectedUniformBuffer(const WgpuContext& ctx, const T& refl) {
+	// 		const wgpu::BufferDescriptor buffer_desc = {
+	// 			.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
+	// 			// .size			  = refl.,
+	// 			.mappedAtCreation = false,
+	// 		};
+	// 		static_cast<wgpu::Buffer&>(*this) = ctx.device.CreateBuffer(&buffer_desc);
+	// 	}
 
+	// private:
+	// };
+
+	class DynamicBuffer : public wgpu::Buffer {
+	public:
+		struct Spec {};
+
+	public:
+		DynamicBuffer(const WgpuContext& ctx, const Spec& spec) {
+			const wgpu::BufferDescriptor desc {
+
+			};
+		}
+	};
+
+	class DynamicBufferPool {
+	public:
+		
+	
 	private:
+		std::vector<DynamicBuffer> _buffers;
 	};
 }  // namespace dvdbchar::Render

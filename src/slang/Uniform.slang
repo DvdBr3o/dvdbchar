@@ -12,8 +12,10 @@ public struct Global {
 }
 
 public struct Camera {
-	public float3 			   position;
-	public float3			   direction;
+	// public float3 			   position;
+	// public float3			   direction;
+	public float4x4 view_matrix;
+	public float4x4 projection_matrix;
 }
 
 public struct PbrMaterial {
