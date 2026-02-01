@@ -3,7 +3,9 @@
 #include "dvdbchar/Render/Camera.hpp"
 #include "dvdbchar/Render/Context.hpp"
 #include "dvdbchar/Render/Primitives.hpp"
+#include "dvdbchar/Render/RenderGraph.hpp"
 #include "dvdbchar/Render/Window.hpp"
+#include "dvdbchar/Model.hpp"
 #include "dvdbchar/Utils.hpp"
 
 #include <exec/static_thread_pool.hpp>
@@ -18,20 +20,28 @@ inline static constexpr char shader[] = {
 using namespace dvdbchar::Render;
 using namespace dvdbchar;
 
+int main1() {
+	try {
+		auto model = Model { "public/VRM1_Constraint_Twist_Sample.vrm" };
+		model.introduce_self();
+	} catch (const std::exception& e) { spdlog::error("Uncaught error: {}", e.what()); }
+	return 0;
+}
+
 int main() {
 	try {
 		auto context = WgpuContext::global();
 		auto pool	 = exec::static_thread_pool {};
 		auto sched	 = context.get_scheduler_from(pool.get_scheduler());
 
-		auto cam	 = Camera {
-				.position  = { 0., 0.,  1. },
-				.direction = { 0., 0., -2. },
+		//
+		auto cam = Camera {
+			.position  = { 0., 0.,  1. },
+			.direction = { 0., 0., -2. },
 		};
 
 		const auto global	 = get_mapping<GlobalRefl>("global", "shaders/Uniform.refl.json");
 		auto	   global_ub = ReflectedUniformBuffer<GlobalRefl> { global };
-
 		// clang-format off
 		auto	   global_bg = Bindgroup {{
 			.layout = layout<GlobalRefl>("global", "shaders/Uniform.refl.json"),
@@ -120,44 +130,60 @@ int main() {
 		};
 		// clang-format on
 
-		while (!glfwWindowShouldClose(window.window())) {
-			glfwPollEvents();
+		// auto graph = []() {
+		// 	RenderGraphBuilder builder;
 
-			wgpu::SurfaceTexture tex;
-			window.surface().GetCurrentTexture(&tex);
+		// 	auto			   tex_present = builder.present_texture();
 
-			global_ub.write(global.time, (float)glfwGetTime());
+		// 	return builder.build_runtime(
+		// 		BasePass {
 
-			const wgpu::RenderPassColorAttachment attachment {
-				.view	 = tex.texture.CreateView(),
-				.loadOp	 = wgpu::LoadOp::Clear,
-				.storeOp = wgpu::StoreOp::Store,
-			};
+		// 			.tex_target = tex_present,
+		// 		}
+		// 	);
+		// }();
 
-			const wgpu::RenderPassDescriptor renderpass {
-				.colorAttachmentCount = 1,
-				.colorAttachments	  = &attachment,
-			};
+		std::jthread render { [&]() {
+			while (!glfwWindowShouldClose(window.window())) {
+				wgpu::SurfaceTexture tex;
+				window.surface().GetCurrentTexture(&tex);
 
-			wgpu::CommandEncoder	encoder = context.device.CreateCommandEncoder();
-			wgpu::RenderPassEncoder pass	= encoder.BeginRenderPass(&renderpass);
-			pass.SetPipeline(pipeline);
-			pass.SetVertexBuffer(0, vb);
-			pass.SetIndexBuffer(ib, wgpu::IndexFormat::Uint32);
-			pass.SetBindGroup(0, global_bg);
-			pass.SetBindGroup(1, camera_bg);
-			// pass.Draw(3);
-			pass.DrawIndexed(6);
-			pass.End();
-			wgpu::CommandBuffer commands = encoder.Finish();
-			context.device.GetQueue().Submit(1, &commands);
+				global_ub.write(global.time, (float)glfwGetTime());
 
-			camera_ub.write(camera.view_matrix, cam.view_matrix());
-			camera_ub.write(camera.projection_matrix, cam.projection_matrix());
+				const wgpu::RenderPassColorAttachment attachment {
+					.view	 = tex.texture.CreateView(),
+					.loadOp	 = wgpu::LoadOp::Clear,
+					.storeOp = wgpu::StoreOp::Store,
+				};
 
-			window.surface().Present();
-			context.instance.ProcessEvents();
-		}
+				const wgpu::RenderPassDescriptor renderpass {
+					.colorAttachmentCount = 1,
+					.colorAttachments	  = &attachment,
+				};
+
+				wgpu::CommandEncoder	encoder = context.device.CreateCommandEncoder();
+				wgpu::RenderPassEncoder pass	= encoder.BeginRenderPass(&renderpass);
+				pass.SetPipeline(pipeline);
+				pass.SetVertexBuffer(0, vb);
+				pass.SetIndexBuffer(ib, wgpu::IndexFormat::Uint32);
+				pass.SetBindGroup(0, global_bg);
+				pass.SetBindGroup(1, camera_bg);
+				// pass.Draw(3);
+				pass.DrawIndexed(6);
+				pass.End();
+				wgpu::CommandBuffer commands = encoder.Finish();
+				context.device.GetQueue().Submit(1, &commands);
+
+				camera_ub.write(camera.view_matrix, cam.view_matrix());
+				camera_ub.write(camera.projection_matrix, cam.projection_matrix());
+
+				window.surface().Present();
+				context.instance.ProcessEvents();
+			}
+		} };
+
+		while (!glfwWindowShouldClose(window.window())) glfwPollEvents();
 
 	} catch (const std::exception& e) { spdlog::error("Uncaught error: {}", e.what()); }
+	return 0;
 }
