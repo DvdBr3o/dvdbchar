@@ -38,7 +38,7 @@ namespace dvdbchar::Render {
 			return glm::perspective(  //
 				fov,
 				aspect,
-				.1f,
+				.001f,
 				100.f
 			);
 		}

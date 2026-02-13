@@ -1,124 +1,360 @@
 #pragma once
 
-#include <webgpu/webgpu_cpp.h>
-#include <type_traits>
-#include "Context.hpp"
 #include "dvdbchar/Render/Context.hpp"
+#include "dvdbchar/Render/Pipeline.hpp"
+#include "dvdbchar/Render/PipelineCache.hpp"
+#include "dvdbchar/Utils.hpp"
+
+#include <webgpu/webgpu_cpp.h>
+
+#include <functional>
+#include <type_traits>
 
 namespace dvdbchar::Render {
-	template<typename T>
-	concept Pass = requires(const T& t, wgpu::CommandEncoder& cmd) { t.execute(cmd); };
-
-	struct ResourceRef {};
-
-	struct TextureRef {
-		size_t						 id;
-		wgpu::TextureDescriptor		 desc;
-
-		inline friend constexpr auto operator==(const TextureRef& lhs, const TextureRef& rhs) {
-			return lhs.id == rhs.id;
-		}
+	enum class ResourceLifetime {
+		Managed,
+		Imported,
 	};
 
-	struct BufferRef {
-		size_t						 id;
-		wgpu::BufferDescriptor		 desc;
+	using ResourceId = size_t;
 
-		inline friend constexpr auto operator==(const BufferRef& lhs, const BufferRef& rhs) {
-			return lhs.id == rhs.id;
-		}
+	template<typename DescT, typename InnerT>
+	struct ResourceRef {
+		ResourceId id;
+		DescT	   desc;
+
+		using Desc	= DescT;
+		using Inner = InnerT;
 	};
 
-	template<Pass... PassTs>
-	class RuntimeRenderGraph {
+	template<Like<ResourceRef> ResT, typename StrategyT>
+	class SpecificResourceManager {
 	public:
-		RuntimeRenderGraph(
-			std::tuple<PassTs...>&& ps, std::vector<size_t>&& ps_idx,
-			std::vector<wgpu::TextureDescriptor>&& tex_descs,
-			std::vector<wgpu::BufferDescriptor>&&  buf_descs
+	private:
+		std::vector<typename ResT::Inner> _pool;
+	};
+
+	using PersistentBufferRef  = ResourceRef<decltype(std::ignore), const wgpu::Buffer*>;
+	using PersistentTextureRef = ResourceRef<decltype(std::ignore), const wgpu::Texture*>;
+	using BufferRef			   = ResourceRef<wgpu::BufferDescriptor, wgpu::Buffer>;
+	using TextureRef		   = ResourceRef<wgpu::TextureDescriptor, wgpu::Texture>;
+
+	class TransientTextureManager {
+	public:
+		struct TextureStrategy {
+			size_t		  tex_id;
+			wgpu::LoadOp  load	= wgpu::LoadOp::Clear;
+			wgpu::StoreOp store = wgpu::StoreOp::Store;
+		};
+
+	public:
+		TransientTextureManager(
+			std::vector<TextureStrategy>&& strategies, std::vector<wgpu::Texture>&& textures
 		) :
-			_ps(std::move(ps)),
-			_ps_idx(std::move(ps_idx)),
-			_tex_descs(std::move(tex_descs)),
-			_buf_descs(std::move(buf_descs)) {}
+			_strategies(strategies), _textures(textures) {}
 
 	public:
-		auto allocate(const wgpu::Device& device) {
-			_texs.reserve(_tex_descs.size());
-			for (const auto& desc : _tex_descs) _texs.emplace_back(device.CreateTexture(&desc));
-			_bufs.reserve(_buf_descs.size());
-			for (const auto& desc : _buf_descs) _bufs.emplace_back(device.CreateBuffer(&desc));
+		auto at(const TextureRef& ref) { return _strategies.at(ref.id); }
+
+	private:
+		std::vector<TextureStrategy> _strategies;
+		std::vector<wgpu::Texture>	 _textures;
+	};
+
+	class TransientBufferManager {
+	public:
+	private:
+		std::vector<wgpu::Buffer> _buffers;
+	};
+
+	template<Like<ResourceRef> ResT, typename SlotT>
+		requires requires(SlotT slot) {
+			{ slot.reflect() } -> Like<std::tuple>;
+		}
+	class SlotManager {
+	public:
+		using InnerT = typename ResT::Inner;
+		static_assert(std::is_default_constructible_v<InnerT>);
+
+	public:
+		constexpr SlotManager(SlotT&& slot) {
+			// clang-format off
+			std::apply(
+				[&](Like<ResourceRef> auto&&... args) {
+					size_t size = 0;
+					([&](){
+						if constexpr (std::convertible_to<std::remove_cvref_t<decltype(args)>, ResT>) {
+							++size;
+						}
+					}(), ...);
+					_slots.resize(size);
+				},
+				slot.reflect()
+			);
+			// clang-format on
 		}
 
-		auto execute(const wgpu::CommandEncoder& cmd) const {
-			for (const auto idx : _ps_idx) std::get<idx>(_ps).execute(cmd);
+	public:
+		auto			   set(ResT ref, const InnerT& handle) { _slots[ref.id] = handle; }
+
+		[[nodiscard]] auto get(ResT ref) const -> const InnerT& { return _slots.at(ref.id); }
+
+	private:
+		std::vector<InnerT> _slots;
+	};
+
+	template<typename SlotT>
+	using BufferSlotManager = SlotManager<PersistentBufferRef, SlotT>;
+	template<typename SlotT>
+	using TextureSlotManager = SlotManager<PersistentTextureRef, SlotT>;
+
+	template<Like<ResourceRef> RefT>
+	class CountBuilder {
+	public:
+		template<typename... Args>
+		[[nodiscard]] constexpr auto create(Args&&... args) -> RefT {
+			return { count++, std::forward<Args>(args)... };
+		}
+
+		template<typename... Args>
+		[[nodiscard]] constexpr auto create_with_id(size_t id, Args&&... args) const -> RefT {
+			return { id, std::forward<Args>(args)... };
 		}
 
 	private:
-		std::tuple<PassTs...>				 _ps;
-		std::vector<size_t>					 _ps_idx;
-		std::vector<wgpu::TextureDescriptor> _tex_descs;
-		std::vector<wgpu::BufferDescriptor>	 _buf_descs;
-		std::vector<wgpu::Texture>			 _texs;
-		std::vector<wgpu::Buffer>			 _bufs;
+		size_t count = 0;
+	};
+
+	struct EmptySlot {};
+
+	using RenderGraphExecutionState = std::vector<size_t>;
+	using RenderGraphExecutionPlan	= std::vector<RenderGraphExecutionState>;
+
+	template<typename SlotT, typename... PassTs>
+	class RuntimeRenderGraph {
+	public:
+		using Slot = std::remove_cvref_t<SlotT>;
+
+	public:
+		RuntimeRenderGraph(SlotT&& slot, std::tuple<PassTs...>&& passes) :
+			_slot(std::move(slot)),
+			_buffer_slots(slot),
+			_texture_slots(slot),
+			_passes(std::move(passes)) {}
+
+	public:
+		auto set_buffer_slot(const PersistentBufferRef& ref, const wgpu::Buffer& buffer) {
+			_buffer_slots.set(ref, &buffer);
+		}
+
+		[[nodiscard]] auto buffer_slot(const PersistentBufferRef& ref) const {
+			return _buffer_slots.get(ref);
+		}
+
+		auto set_texture_slot(const PersistentTextureRef& ref, const wgpu::Texture& texture) {
+			_texture_slots.set(ref, &texture);
+		}
+
+		[[nodiscard]] auto texture_slot(const PersistentTextureRef& ref) const {
+			return _texture_slots.get(ref);
+		}
+
+		[[nodiscard]] auto slot() const -> const Slot& { return _slot; }
+
+		template<typename... Args>
+		auto pipeline(Args&&... args) {
+			return _pipelines.pipeline(std::forward<Args>(args)...);
+		}
+
+		//
+		void execute(const WgpuContext& ctx) const {
+			for (const auto& state : _plan) {
+				std::vector<wgpu::CommandBuffer> cmds;
+				cmds.reserve(state.size());
+				for (const auto& pass : state) {
+					auto cmd = ctx.device.CreateCommandEncoder();
+					std::get<pass>(_passes).execute(cmd);
+					cmds.emplace_back(cmd.Finish());
+				}
+				ctx.queue.Submit(cmds.size(), cmds.data());
+			}
+		}
+
+		void execute() const { return execute(WgpuContext::global()); }
+
+	private:
+		Slot					  _slot;
+		BufferSlotManager<SlotT>  _buffer_slots;
+		TextureSlotManager<SlotT> _texture_slots;
+		std::tuple<PassTs...>	  _passes;
+		RenderGraphExecutionPlan  _plan;
+		PipelineCache			  _pipelines;
 	};
 
 	class RenderGraphBuilder {
 	public:
-		constexpr auto texture(const wgpu::TextureDescriptor& desc) -> TextureRef {
-			return { texture_count++, desc };
-		}
+		auto buffer(wgpu::BufferDescriptor&& desc) { return _buf_builder.create(desc); }
 
-		inline static constexpr auto present_texture(const wgpu::TextureDescriptor& desc)
-			-> TextureRef {
-			return { static_cast<size_t>(-1), desc };
-		}
+		auto texture(wgpu::TextureDescriptor&& desc) { return _tex_builder.create(desc); }
 
-		constexpr auto buffer(const wgpu::BufferDescriptor& desc) -> BufferRef {
-			return { buffer_count++, desc };
-		}
+		auto present_texture() { return _tex_builder.create_with_id(static_cast<size_t>(-1)); }
 
-		template<typename... PassTs>
-		auto build_runtime(PassTs&&... passes) const -> RuntimeRenderGraph<PassTs...> {
-			// TODO:
+		auto import_buffer() { return _import_buf_builder.create(std::ignore); }
+
+		auto import_texture() { return _import_tex_builder.create(std::ignore); }
+
+		template<typename S, typename... Ps>
+		auto build_runtime(S&& slots, std::tuple<Ps...>&& passes) const
+			-> RuntimeRenderGraph<S, Ps...> {
+			std::array<size_t, sizeof...(Ps)> topo {};
+
+			std::apply(
+				[&](auto&&... pass) {
+					(
+						[&]() {
+							if constexpr (std::remove_cvref_t<
+											  decltype(pass.reflect())>::Input::size()
+										  == 0) {
+								// start topo
+							}
+						}(),
+						...
+					);
+				},
+				passes
+			);
+
+			return { std::forward<S>(slots), std::move(passes) };
 		}
 
 	private:
-		size_t texture_count = 0;
-		size_t buffer_count	 = 0;
+		CountBuilder<BufferRef>			   _buf_builder;
+		CountBuilder<TextureRef>		   _tex_builder;
+		CountBuilder<PersistentBufferRef>  _import_buf_builder;
+		CountBuilder<PersistentTextureRef> _import_tex_builder;
 	};
 
-	struct BlitPass {
-		TextureRef src;
-		TextureRef dst;
+	template<typename P, typename Mem>
+	struct PassInput {
+		Mem P::* mem;
+	};
+
+	template<typename P, typename Mem>
+	struct PassOutput {
+		Mem P::* mem;
+	};
+
+	template<Like<PassInput>... Ins>
+	struct PassInputs : public std::tuple<Ins...> {
+		using std::tuple<Ins...>::tuple;
+
+		inline static consteval auto size() -> size_t { return sizeof...(Ins); }
+	};
+
+	using NoPassInputs = PassInputs<>;
+
+	template<typename... Ps, typename... Mems>
+	PassInputs(Mems Ps::*&&...) -> PassInputs<PassInput<Ps, Mems>...>;
+
+	template<Like<PassOutput>... Outs>
+	struct PassOutputs : public std::tuple<Outs...> {
+		using std::tuple<Outs...>::tuple;
+
+		inline static consteval auto size() -> size_t { return sizeof...(Outs); }
+	};
+
+	template<typename... Ps, typename... Mems>
+	PassOutputs(Mems Ps::*&&...) -> PassOutputs<PassOutput<Ps, Mems>...>;
+
+	using NoPassOutputs = PassOutputs<>;
+
+	template<Like<PassInputs> InT, Like<PassOutputs> OutT>
+	struct PassSlot {
+		InT	 input;
+		OutT output;
+
+		using Input	 = InT;
+		using Output = OutT;
+	};
+
+	struct BasePass {
+		PersistentBufferRef vb;
+		PersistentBufferRef ib;
+		TextureRef			target;
 
 		//
-		auto execute(wgpu::CommandEncoder& cmd) const {}
-	};
-
-	class BasePass {
-		TextureRef target;
-		TextureRef depth;
+		static constexpr auto reflect() -> Like<PassSlot> auto {
+			// clang-format off
+			return PassSlot {
+				// .input = PassInputs {
+				// 	// &BasePass::vb,
+				// 	// &BasePass::ib,
+				// },
+				.input = NoPassInputs {},
+				.output = PassOutputs {
+					&BasePass::target,
+				},
+			};
+			// clang-format on
+		}
 
 		//
-		auto execute(wgpu::CommandEncoder& cmd) const {}
+		auto execute(Like<RuntimeRenderGraph> auto&& graph, const wgpu::CommandEncoder& cmd) const {
+			auto buf_vb		= graph.buffer_slot(vb);
+			auto buf_ib		= graph.buffer_slot(ib);
+			auto tex_target = graph.texture(target);
+
+			auto& pipeline = graph.pipeline({
+				.shader = ShaderManager::global().shader(
+					"Pipeline", {
+						.source 	= *read_text_from("shaders/Pipeline.wgsl"),
+						.reflection = *read_text_from("shaders/Uniform.refl.json"),
+					}
+				),
+				// .format = window.format(),
+			});
+
+			//
+			const wgpu::RenderPassColorAttachment color_attachment {
+				.view = tex_target.CreateView(),
+			};
+			const wgpu::RenderPassDescriptor desc {
+				.colorAttachmentCount = 1,
+				.colorAttachments	  = &color_attachment,
+			};
+			auto pass = cmd.BeginRenderPass(&desc);
+			pass.SetVertexBuffer(0, buf_vb);
+			pass.SetIndexBuffer(buf_ib, wgpu::IndexFormat::Uint32);
+			pass.SetPipeline(pipeline);
+		}
 	};
 
-	class LightingPass {};
-
-	inline static auto _test_render_graph() {
+	inline auto _test_render_graph() {
 		auto builder = RenderGraphBuilder {};
 
-		// clang-format off
-		auto tex1 = builder.texture({
-			.dimension 	= wgpu::TextureDimension::e2D,
-			.size 		= wgpu::Extent3D { 800, 800 },
-		});
-		// clang-format on
+		struct Slot {
+			PersistentBufferRef			 vb;
+			PersistentBufferRef			 ib;
 
-		// auto graph =
-		builder.build_runtime(	//
-			BlitPass { tex1, tex1 }
+			[[nodiscard]] constexpr auto reflect() const { return std::tuple { vb, ib }; }
+		};
+
+		Slot slot {
+			.vb = builder.import_buffer(),
+			.ib = builder.import_buffer(),
+		};
+
+		// clang-format off
+		auto graph = builder.build_runtime(
+			slot,
+			std::tuple {
+				BasePass {
+					.vb 	= slot.vb,
+					.ib 	= slot.ib,
+					.target = builder.present_texture(),
+				},
+			}
 		);
+		// clang-format on
 	}
 }  // namespace dvdbchar::Render

@@ -18,12 +18,20 @@
                             "binding": {"kind": "uniform", "offset": 0, "size": 4}
                         },
                         {
-                            "name": "frame",
+                            "name": "delta_time",
                             "type": {
                                 "kind": "scalar",
                                 "scalarType": "float32"
                             },
                             "binding": {"kind": "uniform", "offset": 4, "size": 4}
+                        },
+                        {
+                            "name": "frame",
+                            "type": {
+                                "kind": "scalar",
+                                "scalarType": "float32"
+                            },
+                            "binding": {"kind": "uniform", "offset": 8, "size": 4}
                         },
                         {
                             "name": "viewport",
@@ -73,12 +81,20 @@
                                 "binding": {"kind": "uniform", "offset": 0, "size": 4}
                             },
                             {
-                                "name": "frame",
+                                "name": "delta_time",
                                 "type": {
                                     "kind": "scalar",
                                     "scalarType": "float32"
                                 },
                                 "binding": {"kind": "uniform", "offset": 4, "size": 4}
+                            },
+                            {
+                                "name": "frame",
+                                "type": {
+                                    "kind": "scalar",
+                                    "scalarType": "float32"
+                                },
+                                "binding": {"kind": "uniform", "offset": 8, "size": 4}
                             },
                             {
                                 "name": "viewport",
@@ -191,6 +207,83 @@
                     "binding": {"kind": "uniform", "offset": 0, "size": 128}
                 }
             }
+        },
+        {
+            "name": "pbr",
+            "binding": {"kind": "subElementRegisterSpace", "index": 2},
+            "type": {
+                "kind": "parameterBlock",
+                "elementType": {
+                    "kind": "struct",
+                    "name": "PbrMaterial",
+                    "fields": [
+                        {
+                            "name": "tex_albedo",
+                            "type": {
+                                "kind": "resource",
+                                "baseShape": "texture2D",
+                                "resultType": {
+                                    "kind": "vector",
+                                    "elementCount": 4,
+                                    "elementType": {
+                                        "kind": "scalar",
+                                        "scalarType": "float32"
+                                    }
+                                }
+                            },
+                            "binding": {"kind": "descriptorTableSlot", "index": 0}
+                        },
+                        {
+                            "name": "smp_albedo",
+                            "type": {
+                                "kind": "samplerState"
+                            },
+                            "binding": {"kind": "descriptorTableSlot", "index": 1}
+                        }
+                    ]
+                },
+                "containerVarLayout": {
+                    "binding": {"kind": "subElementRegisterSpace", "index": 0}
+                },
+                "elementVarLayout": {
+                    "type": {
+                        "kind": "struct",
+                        "name": "PbrMaterial",
+                        "fields": [
+                            {
+                                "name": "tex_albedo",
+                                "type": {
+                                    "kind": "resource",
+                                    "baseShape": "texture2D",
+                                    "resultType": {
+                                        "kind": "vector",
+                                        "elementCount": 4,
+                                        "elementType": {
+                                            "kind": "scalar",
+                                            "scalarType": "float32"
+                                        }
+                                    }
+                                },
+                                "binding": {"kind": "descriptorTableSlot", "index": 0}
+                            },
+                            {
+                                "name": "smp_albedo",
+                                "type": {
+                                    "kind": "samplerState"
+                                },
+                                "binding": {"kind": "descriptorTableSlot", "index": 1}
+                            }
+                        ]
+                    },
+                    "binding": {"kind": "descriptorTableSlot", "index": 0, "count": 2}
+                }
+            }
         }
-    ]
+    ],
+    "hashedStrings": {
+        "global": -257245373,
+        "camera": 1364112997,
+        "pbr": 931717376
+    }
+
 }

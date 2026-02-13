@@ -354,12 +354,13 @@ namespace dvdbchar::Render {
 	class ReflectedUniformBuffer {};
 
 	template<ReflMapped T>
-	class ReflectedUniformBuffer<T> : public wgpu::Buffer {
+	class ReflectedUniformBuffer<T> : public wgpu::Buffer, public ReflectedParameter<T> {
 	public:
 		template<typename... Args>
 		ReflectedUniformBuffer(
 			const WgpuContext& ctx, const ReflectedParameter<T>& refl, Args&&... args
-		) {
+		) :
+			ReflectedParameter<T>(refl) {
 			const wgpu::BufferDescriptor buffer_desc = {
 				.usage			  = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst,
 				.size			  = refl.size,
@@ -399,6 +400,28 @@ namespace dvdbchar::Render {
 	// private:
 	// };
 
+	template<ReflMapped T>
+	inline auto uniform_buffer_bindgroup(size_t binding, const ReflectedUniformBuffer<T>& buffer)
+		-> wgpu::BindGroupEntry {
+		return {
+			.binding = binding,
+			.buffer	 = buffer,
+			.offset	 = buffer.offset,
+			.size	 = buffer.size,
+		};
+	}
+
+	template<ReflMapped T>
+	inline auto uniform_buffer_bindgroup(const ReflectedUniformBuffer<T>& buffer)
+		-> wgpu::BindGroupEntry {
+		return {
+			.binding = 0,
+			.buffer	 = buffer,
+			.offset	 = buffer.offset,
+			.size	 = buffer.size,
+		};
+	}
+
 	class DynamicBuffer : public wgpu::Buffer {
 	public:
 		struct Spec {};
@@ -413,9 +436,51 @@ namespace dvdbchar::Render {
 
 	class DynamicBufferPool {
 	public:
-		
-	
 	private:
 		std::vector<DynamicBuffer> _buffers;
 	};
+
+	template<typename T, wgpu::BufferUsage usage>
+	inline auto array_buffer(const WgpuContext& ctx, std::span<const T> data) -> wgpu::Buffer {
+		const wgpu::BufferDescriptor desc {
+			.usage			  = usage,
+			.size			  = sizeof(T) * data.size(),
+			.mappedAtCreation = false,
+		};
+		wgpu::Buffer buffer = ctx.device.CreateBuffer(&desc);
+
+		ctx.queue.WriteBuffer(buffer, 0, data.data(), sizeof(T) * data.size());
+
+		return buffer;
+	}
+
+	template<typename T, wgpu::BufferUsage usage>
+	inline auto array_buffer(std::span<const T> data) -> wgpu::Buffer {
+		return array_buffer(WgpuContext::global(), data);
+	}
+
+	template<typename VerticeT>
+	inline auto array_vertex_buffer(const WgpuContext& ctx, std::span<const VerticeT> data)
+		-> wgpu::Buffer {
+		return array_buffer<VerticeT, wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst>(
+			ctx,
+			data
+		);
+	}
+
+	template<typename VerticeT>
+	inline auto array_vertex_buffer(std::span<const VerticeT> data) -> wgpu::Buffer {
+		return array_vertex_buffer<VerticeT>(WgpuContext::global(), data);
+	}
+
+	template<typename T>
+	inline auto array_index_buffer(const WgpuContext& ctx, std::span<const T> data)
+		-> wgpu::Buffer {
+		return array_buffer<T, wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst>(ctx, data);
+	}
+
+	template<typename T>
+	inline auto array_index_buffer(std::span<const T> data) -> wgpu::Buffer {
+		return array_index_buffer<T>(WgpuContext::global(), data);
+	}
 }  // namespace dvdbchar::Render

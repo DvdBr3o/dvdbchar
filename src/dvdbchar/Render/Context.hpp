@@ -111,6 +111,13 @@ namespace dvdbchar::Render {
 			return context;
 		}
 
+		template<typename... Args>
+		inline static auto threadsafe_global(Args&&... args)
+			-> std::pair<WgpuContext&, std::mutex&> {
+			static std::mutex mtx;
+			return { global(std::forward<Args>(args)...), mtx };
+		}
+
 		inline friend auto operator==(const WgpuContext& lhs, const WgpuContext& rhs) -> bool {
 			return lhs.instance.Get() == rhs.instance.Get()	 //
 				&& lhs.device.Get() == rhs.device.Get()		 //

@@ -1,0 +1,19 @@
+[project]
+name = "dvdbchar"
+version = "0.1.0"
+bpm = 92
+pre = 300 # ms
+
+[[window.video-playing]]
+title = "vlog"
+video = "cod20.mp4"
+duration = { start = 0, end = 4 }
+position = [ 10, 10, 800, 600 ] # offset.xy, size.wh
+
+[[window.vtubing]]
+title = "dvdbchar"
+model = "VRM1_Constraint_Twist_Sample.vrm"
+
+[[window.visualizing]]
+title = "visual"
+shader = "shaders/visual.slang"

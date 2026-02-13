@@ -13,6 +13,8 @@
 #	pragma comment(lib, "opengl32.lib")
 #endif
 #include <spdlog/spdlog.h>
+#include <dawn/native/D3D12Backend.h>
+#include <dawn/native/D3DBackend.h>
 
 #include <stdexcept>
 

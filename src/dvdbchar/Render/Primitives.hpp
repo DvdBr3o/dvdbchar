@@ -79,20 +79,22 @@ namespace dvdbchar::Render {
 	};
 
 	struct PbrRefl {
-		Field<glm::vec4> base_color;
+		Field<glm::vec4> tex_albedo;
+		Field<glm::vec4> smp_albedo;
 		Field<float>	 metallic;
-		Field<float>	 roughness;
-		Field<float>	 alpha_cutoff;
+		// Field<float>	 roughness;
+		// Field<float>	 alpha_cutoff;
 	};
 
 	template<>
 	struct ReflectionRegistry<PbrRefl> {
 		inline static consteval auto mapping() {
 			return std::tuple {
-				std::pair {	"base_color",	  &PbrRefl::base_color },
-				std::pair {		"metallic",		&PbrRefl::metallic },
-				std::pair {	"roughness",	 &PbrRefl::roughness },
-				std::pair { "alpha_cutoff", &PbrRefl::alpha_cutoff },
+				std::pair { "tex_albedo", &PbrRefl::tex_albedo },
+				std::pair { "smp_albedo", &PbrRefl::smp_albedo },
+				std::pair {	"metallic",	&PbrRefl::metallic },
+				// std::pair {	"roughness",	 &PbrRefl::roughness },
+				// std::pair { "alpha_cutoff", &PbrRefl::alpha_cutoff },
 			};
 		}
 	};
