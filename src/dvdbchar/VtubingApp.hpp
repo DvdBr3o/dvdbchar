@@ -30,19 +30,19 @@ namespace dvdbchar {
 			_window(spec.window), _model(std::move(spec.model)),
             _ppl_base {{
                 .shader     = *read_text_from("shaders/Pipeline.wgsl"),
-		        .reflection = *read_text_from("shaders/Uniform.refl.json"),
+		        .reflection = *read_text_from("shaders/Uniform.layout.json"),
                 .format     = _window.format(),
             }},
             _global_ub(get_mapping<GlobalRefl>("global", "shaders/Uniform.refl.json")),
             _global_bg {{
-                .layout  = bindgroup_layouts_from_path("shaders/Uniform.refl.json")["global"],
+                .layout  = parsed::bindgroup_layout_from_path("global", "shaders/Uniform.layout.json"),
                 .entries = std::array { 
                     uniform_buffer_bindgroup(_global_ub),
                 }, 
             }},
             _camera_ub(get_mapping<CameraRefl>("camera", "shaders/Uniform.refl.json")),
             _camera_bg {{
-                .layout	 = bindgroup_layouts_from_path("shaders/Uniform.refl.json")["camera"],
+                .layout	 = parsed::bindgroup_layout_from_path("camera", "shaders/Uniform.layout.json"),
                 .entries = std::array {
                     uniform_buffer_bindgroup(_camera_ub),
                 }

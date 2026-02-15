@@ -41,7 +41,6 @@ float4 fragMain(VertexOutput in_vert) : SV_Target {
 	// int2 pixel_coords = int2(in_vert.uv * float2(width, height));
 	// return pbr.tex_albedo[pixel_coords];
     
-	// int2 pixel_coords = int2(in_vert.uv * float2(width, height)) * pbr.foo;
 	return pbr.tex_albedo.Sample(pbr.smp_albedo, in_vert.uv);
 	// return float4(in_vert.uv, 0., 1.);
 	// return float4(.1, .8, .9, 1.);

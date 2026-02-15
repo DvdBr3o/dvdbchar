@@ -124,8 +124,7 @@ namespace dvdbchar::Render {
 				.attributeCount = spec.vertex.attributes.size(),
 				.attributes		= spec.vertex.attributes.data(),
 			};
-			const auto bgls = bindgroup_layouts_from_string(ctx, spec.reflection).all();
-			spdlog::info("bgls.size = {}", bgls.size());
+			const auto bgls = parsed::bindgroup_layouts_from_string(ctx, spec.reflection);
 			const wgpu::DepthStencilState depth_stencil_state {
 				.format			   = wgpu::TextureFormat::Depth24Plus,
 				.depthWriteEnabled = true,

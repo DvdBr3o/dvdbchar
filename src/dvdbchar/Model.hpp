@@ -107,7 +107,7 @@ namespace dvdbchar {
 			{	// pbr bg
 				// clang-format off
 				out_primitive.bg_pbr = Render::Bindgroup { Render::Bindgroup::Spec {
-					.layout = Render::bindgroup_layouts_from_path("shaders/Uniform.refl.json")["pbr"],
+					.layout = Render::parsed::bindgroup_layout_from_path("pbr", "shaders/Uniform.layout.json"),
 					.entries = std::array { 
 						wgpu::BindGroupEntry {
 							.binding = 0,

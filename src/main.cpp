@@ -41,16 +41,18 @@ int main4() {
 }
 
 int main() {
+	// try {
 	auto app = VtubingApp {{
-		.window = {
-			.width	     = 1920,
-			.height	     = 1080,
-			.title	     = "你好我是DvdBr3o",
-			.transparent = true,
-		},
-		.model = Model { "public/VRM1_Constraint_Twist_Sample.vrm" },
-	}};
+			.window = {
+				.width	     = 1920,
+				.height	     = 1080,
+				.title	     = "你好我是DvdBr3o",
+				.transparent = true,
+			},
+			.model = Model { "public/VRM1_Constraint_Twist_Sample.vrm" },
+		}};
 	app.launch();
+	// } catch (const std::exception& e) { spdlog::critical("Uncaught exception: {}", e.what()); }
 	return 0;
 }
 
@@ -69,7 +71,7 @@ int main3() {
 	};
 	// clang-format off
 	auto global_bg = Bindgroup {{
-		.layout = bindgroup_layouts_from_path("shaders/Uniform.refl.json")["global"],
+		.layout = parsed::bindgroup_layout_from_path("global", "shaders/Uniform.refl.json"),
 		.entries = std::array { wgpu::BindGroupEntry {
 			.binding = 0,
 			.buffer  = global_ub,
@@ -86,7 +88,7 @@ int main3() {
 	camera_ub.write(camera_ub.projection_matrix, cam.projection_matrix());
 	// clang-format off
 	auto camera_bg = Bindgroup {{
-		.layout	 = bindgroup_layouts_from_path("shaders/Uniform.refl.json")["global"],
+		.layout	 = parsed::bindgroup_layout_from_path("global", "shaders/Uniform.refl.json"),
 		.entries = std::array { wgpu::BindGroupEntry {
 			.binding = 0,
 			.buffer	 = camera_ub,
@@ -134,7 +136,7 @@ int main3() {
 	// clang-format off
 	auto pipeline = Pipeline {{
 		.shader = *read_text_from("shaders/Pipeline.wgsl"),
-		.reflection = *read_text_from("shaders/Uniform.refl.json"),
+		.reflection = *read_text_from("shaders/Uniform.layout.json"),
 		.format = window.format(),
 	}};
 	// clang-format on

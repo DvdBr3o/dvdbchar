@@ -230,10 +230,6 @@ namespace dvdbchar::Render {
 					auto var_layout = parameter["type"]["elementVarLayout"];
 
 					if (auto bindings = var_layout.find("bindings"); bindings != var_layout.end()) {
-						spdlog::info(
-							"yes bindings for field `{}`",
-							(std::string_view)parameter["name"]
-						);
 						for (auto&& binding : *bindings)
 							if (binding["kind"] == "uniform") {
 								entries.emplace_back(wgpu::BindGroupLayoutEntry{
@@ -247,10 +243,6 @@ namespace dvdbchar::Render {
 							}
 					} else if (auto binding = var_layout.find("binding");
 							   binding != var_layout.end()) {
-						spdlog::info(
-							"yes binding for field `{}`",
-							(std::string_view)parameter["name"]
-						);
 						if ((*binding)["kind"] == "uniform") {
 							entries.emplace_back(wgpu::BindGroupLayoutEntry{
 								.binding = 0,
@@ -435,5 +427,139 @@ namespace dvdbchar::Render {
 		-> BindgroupLayoutMap {
 		return bindgroup_layouts_from_path(WgpuContext::global(), path);
 	}
+
+	namespace parsed {
+		namespace details {
+			inline auto view_dimension_from(std::string_view s) -> wgpu::TextureViewDimension {
+				if (s == "e1D")
+					return wgpu::TextureViewDimension::e1D;
+				else if (s == "e2D")
+					return wgpu::TextureViewDimension::e2D;
+				else if (s == "e3D")
+					return wgpu::TextureViewDimension::e3D;
+				else [[unlikely]] {
+					panic(std::format("unexpected view dimension `{}`!", s));
+					throw;
+				}
+			}
+		}  // namespace details
+
+		inline auto bindgroup_layout(
+			const WgpuContext& ctx, simdjson::ondemand::value&& parameter
+		) {
+			auto param = parameter.get_object();
+
+			//
+			std::vector<wgpu::BindGroupLayoutEntry> entries;
+			entries.reserve(param["bindings_count"]);
+
+			for (auto&& kv : param["bindings"].get_object()) {
+				auto			 binding = kv->value();
+				std::string_view kind	 = binding["kind"];
+				if (kind == "uniform")
+					entries.emplace_back(wgpu::BindGroupLayoutEntry {
+						.binding = (uint32_t)binding["binding"],
+						.visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+						.buffer = {
+							.type = wgpu::BufferBindingType::Uniform,
+							.minBindingSize = binding["size"],
+						},
+					});
+				else if (kind == "texture")
+					entries.emplace_back(wgpu::BindGroupLayoutEntry {
+						.binding = (uint32_t)binding["binding"],
+						.visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+						.texture = {
+							.sampleType = wgpu::TextureSampleType::Float,
+							.viewDimension = details::view_dimension_from(binding["viewDimension"]),
+							// .multisampled = true,
+						},
+					});
+				else if (kind == "sampler")
+					entries.emplace_back(
+						wgpu::BindGroupLayoutEntry {
+							.binding	= (uint32_t)binding["binding"],
+							.visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+							.sampler	= {
+								.type = wgpu::SamplerBindingType::Filtering,
+							},
+						}
+					);
+				else [[unlikely]]
+					panic(std::format("unexpected binding kind `{}`!", kind));
+			}
+
+			const wgpu::BindGroupLayoutDescriptor desc {
+				.entryCount = entries.size(),
+				.entries	= entries.data(),
+			};
+			return ctx.device.CreateBindGroupLayout(&desc);
+		}
+
+		inline auto bindgroup_layout(
+			const WgpuContext& ctx, std::string_view name, simdjson::ondemand::value&& json
+		) {
+			return parsed::bindgroup_layout(ctx, json["parameters"][name]);
+		}
+
+		inline auto bindgroup_layouts(const WgpuContext& ctx, simdjson::ondemand::value&& json)
+			-> std::vector<wgpu::BindGroupLayout> {
+			auto parameters = json["all"].get_array();
+
+			//
+			std::vector<wgpu::BindGroupLayout> layouts;
+			layouts.reserve(parameters.count_elements());
+
+			for (auto&& parameter : parameters)
+				layouts.emplace_back(parsed::bindgroup_layout(ctx, std::move(parameter)));
+			return layouts;
+		}
+
+		inline auto bindgroup_layout_from_path(
+			const WgpuContext& ctx, std::string_view name, const std::filesystem::path& path
+		) {
+			using namespace simdjson::ondemand;
+			using namespace simdjson;
+			parser parser;
+			auto   str	= padded_string::load(path.string());
+			auto   json = parser.iterate(str);
+			return parsed::bindgroup_layout(ctx, name, json);
+		}
+
+		inline auto bindgroup_layout_from_path(
+			std::string_view name, const std::filesystem::path& path
+		) {
+			return parsed::bindgroup_layout_from_path(WgpuContext::global(), name, path);
+		}
+
+		inline auto bindgroup_layouts_from_path(
+			const WgpuContext& ctx, const std::filesystem::path& path
+		) {
+			using namespace simdjson::ondemand;
+			using namespace simdjson;
+			parser parser;
+			auto   str	= padded_string::load(path.string());
+			auto   json = parser.iterate(str);
+			return parsed::bindgroup_layouts(ctx, json);
+		}
+
+		inline auto bindgroup_layouts_from_path(const std::filesystem::path& path) {
+			return parsed::bindgroup_layouts_from_path(WgpuContext::global(), path);
+		}
+
+		inline auto bindgroup_layouts_from_string(const WgpuContext& ctx, std::string_view s) {
+			using namespace simdjson::ondemand;
+			using namespace simdjson;
+			parser parser;
+			auto   str	= padded_string { s };
+			auto   json = parser.iterate(str);
+			return parsed::bindgroup_layouts(ctx, json);
+		}
+
+		inline auto bindgroup_layouts_from_string(std::string_view s) {
+			return parsed::bindgroup_layouts_from_string(WgpuContext::global(), s);
+		}
+
+	}  // namespace parsed
 
 }  // namespace dvdbchar::Render
